@@ -1,0 +1,235 @@
+import { ClipboardList } from "lucide-react";
+import { useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { ensureDatabaseReady } from "../../db";
+import {
+  addUsefulExtraToTrip,
+  listUsefulExtraSuggestionsForTrip,
+} from "../../db/repositories/useful-extras-repository";
+import {
+  applyTemplateToTrip,
+  previewTemplatesForTrip,
+  type TemplatePreview,
+} from "../../db/repositories/templates-repository";
+import { getTrip } from "../../db/repositories/trips-repository";
+import { listTravellers } from "../../db/repositories/travellers-repository";
+import type { UsefulExtraSuggestion } from "../../db/repositories/useful-extras-repository";
+import { PageSection } from "../../components/layout/PageSection";
+import { useAsyncData } from "../../hooks/use-async-data";
+
+export function TripTemplatesScreen() {
+  const { tripId } = useParams();
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [message, setMessage] = useState("");
+  const data = useAsyncData(async () => {
+    await ensureDatabaseReady();
+
+    if (!tripId) {
+      throw new Error("Trip not found.");
+    }
+
+    const [trip, travellers] = await Promise.all([getTrip(tripId), listTravellers()]);
+
+    if (!trip) {
+      throw new Error("Trip not found.");
+    }
+
+    const [templatePreviews, usefulExtras] = await Promise.all([
+      previewTemplatesForTrip(trip, travellers),
+      listUsefulExtraSuggestionsForTrip(trip, travellers),
+    ]);
+
+    return { trip, travellers, templatePreviews, usefulExtras };
+  }, [tripId, refreshKey]);
+
+  async function refreshAfter(action: Promise<unknown>, success: string) {
+    setMessage("");
+    await action;
+    setMessage(success);
+    setRefreshKey((key) => key + 1);
+  }
+
+  return (
+    <section className="space-y-5">
+      {data.state === "loading" ? (
+        <TemplateStatus message="Loading template suggestions..." />
+      ) : null}
+      {data.state === "error" ? <TemplateStatus message={data.error} /> : null}
+      {data.state === "ready" ? (
+        <>
+          <div className="pp-page-hero rounded-lg border border-charcoal/10 bg-paper p-5 shadow-soft sm:p-7">
+            <p className="inline-flex items-center gap-2 rounded-full bg-tealSoft px-3 py-1 text-sm font-bold uppercase tracking-wide text-tealDeep">
+              <ClipboardList aria-hidden="true" className="h-4 w-4" />
+              Templates
+            </p>
+            <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h1 className="text-3xl font-black tracking-normal text-charcoal sm:text-4xl">
+                  {data.data.trip.name}
+                </h1>
+                <p className="mt-3 max-w-3xl text-base leading-7 text-charcoal/74">
+                  Preview template and useful-extra suggestions before adding
+                  them to this packing list.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link className="trip-action" to={`/trips/${data.data.trip.id}`}>
+                  Trip overview
+                </Link>
+                <Link className="trip-action" to={`/trips/${data.data.trip.id}/pack`}>
+                  Packing list
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {message ? (
+            <div className="rounded-lg border border-teal/30 bg-teal/10 px-4 py-3 text-sm text-charcoal/78">
+              {message}
+            </div>
+          ) : null}
+
+          <PageSection title="Template preview">
+            {data.data.templatePreviews.length === 0 ? (
+              <p className="text-sm text-charcoal/65">
+                No seeded templates match this trip yet.
+              </p>
+            ) : (
+              <div className="grid gap-4">
+                {data.data.templatePreviews.map((preview) => (
+                  <TemplatePreviewCard
+                    key={preview.template.id}
+                    preview={preview}
+                    onApply={() =>
+                      refreshAfter(
+                        applyTemplateToTrip(
+                          preview.template.id,
+                          data.data.trip,
+                          data.data.travellers,
+                        ),
+                        `${preview.template.name} applied.`,
+                      )
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </PageSection>
+
+          <PageSection title="Useful extras">
+            {data.data.usefulExtras.length === 0 ? (
+              <p className="text-sm text-charcoal/65">
+                No useful extras match this trip yet.
+              </p>
+            ) : (
+              <div className="grid gap-3">
+                {data.data.usefulExtras.map((suggestion) => (
+                  <UsefulExtraSuggestionRow
+                    key={suggestion.extra.id}
+                    suggestion={suggestion}
+                    onAdd={() =>
+                      refreshAfter(
+                        addUsefulExtraToTrip(
+                          suggestion.extra.id,
+                          data.data.trip,
+                          data.data.travellers,
+                        ),
+                        `${suggestion.extra.name} added.`,
+                      )
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </PageSection>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+export function TemplatePreviewCard({
+  onApply,
+  preview,
+}: {
+  onApply: () => void;
+  preview: TemplatePreview;
+}) {
+  return (
+    <article className="rounded-lg border border-charcoal/10 bg-cream p-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-charcoal">
+            {preview.template.name}
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-charcoal/70">
+            {preview.newCount} new, {preview.duplicateCount} duplicates,{" "}
+            {preview.skippedCount} skipped.
+          </p>
+        </div>
+        <button
+          className="min-h-11 rounded-lg bg-slateAccent px-4 py-3 text-sm font-semibold text-cream shadow-soft disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={preview.newCount === 0}
+          onClick={onApply}
+          type="button"
+        >
+          Apply template
+        </button>
+      </div>
+      <ul className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {preview.suggestions.map((suggestion) => (
+          <li
+            className="rounded-lg bg-paper px-3 py-2 text-sm text-charcoal"
+            key={suggestion.templateItem.id}
+          >
+            <span className="font-semibold">{suggestion.templateItem.name}</span>
+            <span className="block text-charcoal/65">
+              {suggestion.ownerTraveller?.name ?? "No owner"} -{" "}
+              {suggestion.status}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </article>
+  );
+}
+
+function UsefulExtraSuggestionRow({
+  onAdd,
+  suggestion,
+}: {
+  onAdd: () => void;
+  suggestion: UsefulExtraSuggestion;
+}) {
+  return (
+    <article className="rounded-lg border border-charcoal/10 bg-cream p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-charcoal">
+            {suggestion.extra.name}
+          </h2>
+          <p className="mt-1 text-sm text-charcoal/65">
+            {suggestion.extra.category} - {suggestion.extra.defaultPriority} -{" "}
+            {suggestion.status}
+          </p>
+        </div>
+        <button
+          className="trip-action"
+          disabled={suggestion.status !== "new"}
+          onClick={onAdd}
+          type="button"
+        >
+          Add to trip
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function TemplateStatus({ message }: { message: string }) {
+  return (
+    <section className="rounded-lg border border-charcoal/10 bg-paper p-5 text-sm text-charcoal/70 shadow-soft">
+      {message}
+    </section>
+  );
+}

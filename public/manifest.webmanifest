@@ -1,0 +1,40 @@
+{
+  "name": "Properly Packed",
+  "short_name": "Packed",
+  "description": "Family travel packing, without the forgotten bits.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "portrait",
+  "background_color": "#FFF7ED",
+  "theme_color": "#147C86",
+  "lang": "en-GB",
+  "dir": "ltr",
+  "categories": ["travel", "productivity", "lifestyle"],
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Trips",
+      "short_name": "Trips",
+      "description": "Open your trip list.",
+      "url": "trips",
+      "icons": [{ "src": "icons/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Import and Export",
+      "short_name": "Backups",
+      "description": "Create or restore a local JSON backup.",
+      "url": "settings/import-export",
+      "icons": [{ "src": "icons/icon.svg", "sizes": "any" }]
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Properly Packed app icon">
+  <rect width="512" height="512" rx="96" fill="#2f3a3d"/>
+  <path d="M156 184c0-26.5 21.5-48 48-48h104c26.5 0 48 21.5 48 48v16h26c22.1 0 40 17.9 40 40v136c0 22.1-17.9 40-40 40H130c-22.1 0-40-17.9-40-40V240c0-22.1 17.9-40 40-40h26v-16Z" fill="#f7f0e8"/>
+  <path d="M204 168h104c8.8 0 16 7.2 16 16v16H188v-16c0-8.8 7.2-16 16-16Z" fill="#477b73"/>
+  <path d="M126 268h260M154 332h204" stroke="#d9a74f" stroke-width="28" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>Properly Packed</title>
+  </head>
+  <body>
+    <script>
+      (function () {
+        var basePath = "/properly-packed";
+        var location = window.location;
+        var route = location.pathname.startsWith(basePath)
+          ? location.pathname.slice(basePath.length)
+          : location.pathname;
+
+        if (!route.startsWith("/")) {
+          route = "/" + route;
+        }
+
+        var redirect = route + location.search + location.hash;
+        location.replace(basePath + "/?redirect=" + encodeURIComponent(redirect));
+      })();
+    </script>
+    <p>Loading Properly Packed...</p>
+  </body>
+</html>
