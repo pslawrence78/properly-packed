@@ -11,7 +11,8 @@ export type TravellerInput = Pick<
   >;
 
 export async function listTravellers(db: ProperlyPackedDatabase = appDb) {
-  return db.travellers.orderBy("name").toArray();
+  const travellers = await db.travellers.orderBy("name").toArray();
+  return travellers.filter((traveller) => !traveller.archivedAt);
 }
 
 export async function listDefaultTravellers(db: ProperlyPackedDatabase = appDb) {

@@ -8,7 +8,7 @@ import {
   previewGadgetBundleForTrip,
 } from "../db/repositories/gadget-bundles-repository";
 import { applyInitialSeed } from "../db/seed";
-import type { PackingItem, Trip } from "../db/types";
+import type { PackingItem, Traveller, Trip } from "../db/types";
 
 const testDatabases: ProperlyPackedDatabase[] = [];
 
@@ -31,14 +31,9 @@ describe("gadget bundles repository", () => {
   it("applies required bundle items with source tracking and pre-trip tasks", async () => {
     const db = createTestDatabase();
     await applyInitialSeed(db, () => "2026-06-16T00:00:00.000Z");
-    const travellers = await db.travellers.toArray();
-    const trip = tripRow(
-      travellers
-        .filter((traveller) =>
-          ["Phil", "Beck", "Seb", "Shared Family"].includes(traveller.name),
-        )
-        .map((traveller) => traveller.id),
-    );
+    const travellers = [traveller("traveller:alex", "Alex")];
+    await db.travellers.bulkAdd(travellers);
+    const trip = tripRow(travellers.map((traveller) => traveller.id));
     const bundleId = "seed:gadget-bundle:camera-kit";
     await db.trips.add(trip);
 
@@ -63,7 +58,8 @@ describe("gadget bundles repository", () => {
   it("includes selected optional items", async () => {
     const db = createTestDatabase();
     await applyInitialSeed(db, () => "2026-06-16T00:00:00.000Z");
-    const travellers = await db.travellers.toArray();
+    const travellers = [traveller("traveller:alex", "Alex")];
+    await db.travellers.bulkAdd(travellers);
     const trip = tripRow(travellers.map((traveller) => traveller.id));
     await db.trips.add(trip);
 
@@ -133,6 +129,7 @@ function packingItem(
     id,
     tripId: "trip:1",
     name,
+    ownershipScope: "traveller",
     ownerTravellerId: "traveller:phil",
     category: "electronics",
     quantity: 1,
@@ -143,6 +140,17 @@ function packingItem(
     source: "gadget-bundle",
     notes,
     forgottenRisk: false,
+    createdAt: "2026-06-16T00:00:00.000Z",
+    updatedAt: "2026-06-16T00:00:00.000Z",
+  };
+}
+
+function traveller(id: string, name: string): Traveller {
+  return {
+    id,
+    name,
+    travellerType: "adult",
+    defaultIncluded: true,
     createdAt: "2026-06-16T00:00:00.000Z",
     updatedAt: "2026-06-16T00:00:00.000Z",
   };

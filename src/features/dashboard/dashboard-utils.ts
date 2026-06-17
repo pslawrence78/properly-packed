@@ -34,7 +34,9 @@ export type DashboardReadiness = {
   essentialsNotPacked: PackingItem[];
   missingDependencyCount: number;
   unassignedCount: number;
+  unassignedEssentialItems: PackingItem[];
   travellerReadiness: TravellerReadiness[];
+  sharedReadiness: TravellerReadiness;
   bagReadiness: BagReadiness[];
   outfitSummary: ReturnType<typeof calculateOutfitProgress>;
   canMarkReady: boolean;
@@ -59,18 +61,28 @@ export function buildDashboardReadiness({
   );
   const actionCounts = countActionStatuses(packingItems);
   const missingDependencyCount = findMissingDependencies(packingItems).length;
-  const unassignedCount = packableItems.filter((item) => !item.bagId).length;
+  const unassignedItems = packableItems.filter(
+    (item) => item.ownershipScope === "unassigned",
+  );
+  const unassignedEssentialItems = unassignedItems.filter(
+    (item) => item.priority === "essential",
+  );
 
   return {
     overall: calculatePackingProgress(packingItems),
     actionCounts,
     essentialsNotPacked,
     missingDependencyCount,
-    unassignedCount,
+    unassignedCount: unassignedItems.length,
+    unassignedEssentialItems,
     travellerReadiness: buildTravellerReadiness(travellers, packingItems),
+    sharedReadiness: buildSharedReadiness(packingItems),
     bagReadiness: buildBagReadiness(bags, packingItems),
     outfitSummary: calculateOutfitProgress(outfits, outfitItems),
-    canMarkReady: essentialsNotPacked.length === 0 && missingDependencyCount === 0,
+    canMarkReady:
+      essentialsNotPacked.length === 0 &&
+      missingDependencyCount === 0 &&
+      unassignedEssentialItems.length === 0,
   };
 }
 
@@ -90,7 +102,10 @@ export function buildTravellerReadiness(
 ): TravellerReadiness[] {
   return travellers.map((traveller) => {
     const travellerItems = items.filter(
-      (item) => item.ownerTravellerId === traveller.id && item.status !== "not-taking",
+      (item) =>
+        item.ownershipScope === "traveller" &&
+        item.ownerTravellerId === traveller.id &&
+        item.status !== "not-taking",
     );
     const packedCount = travellerItems.filter((item) => item.status === "packed").length;
     const packableCount = travellerItems.length;
@@ -104,6 +119,23 @@ export function buildTravellerReadiness(
         packableCount === 0 ? 0 : Math.round((packedCount / packableCount) * 100),
     };
   });
+}
+
+export function buildSharedReadiness(items: PackingItem[]): TravellerReadiness {
+  const sharedItems = items.filter(
+    (item) => item.ownershipScope === "shared" && item.status !== "not-taking",
+  );
+  const packedCount = sharedItems.filter((item) => item.status === "packed").length;
+  const packableCount = sharedItems.length;
+
+  return {
+    travellerId: "shared",
+    travellerName: "Shared",
+    packedCount,
+    packableCount,
+    percentPacked:
+      packableCount === 0 ? 0 : Math.round((packedCount / packableCount) * 100),
+  };
 }
 
 export function buildBagReadiness(bags: Bag[], items: PackingItem[]): BagReadiness[] {

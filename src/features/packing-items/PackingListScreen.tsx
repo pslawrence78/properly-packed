@@ -21,7 +21,9 @@ import {
   filterPackingItems,
   packingPriorityOptions,
   packingStatusOptions,
+  SHARED_OWNERSHIP_FILTER,
   type PackingFilters,
+  UNASSIGNED_OWNERSHIP_FILTER,
 } from "./packing-item-utils";
 
 export function PackingListScreen() {
@@ -269,10 +271,14 @@ function PackingFiltersPanel({
           label="Owner"
           value={filters.ownerTravellerId}
           onChange={(value) => onChange({ ...filters, ownerTravellerId: value })}
-          options={travellers.map((traveller) => ({
-            value: traveller.id,
-            label: traveller.name,
-          }))}
+          options={[
+            ...travellers.map((traveller) => ({
+              value: traveller.id,
+              label: traveller.name,
+            })),
+            { value: SHARED_OWNERSHIP_FILTER, label: "Shared" },
+            { value: UNASSIGNED_OWNERSHIP_FILTER, label: "Unassigned" },
+          ]}
         />
         <FilterSelect
           label="Category"
@@ -375,7 +381,7 @@ function PackingItemCard({
             </span>
           </div>
           <p className="mt-2 text-sm text-charcoal/70">
-            {owner?.name ?? "Unknown owner"} · {item.category} · qty{" "}
+            {getOwnershipLabel(item, owner)} · {item.category} · qty{" "}
             {item.quantity} · {item.priority}
           </p>
           {responsible ? (
@@ -418,6 +424,18 @@ function PackingItemCard({
       </div>
     </article>
   );
+}
+
+function getOwnershipLabel(item: PackingItem, owner?: Traveller) {
+  if (item.ownershipScope === "shared") {
+    return "Shared";
+  }
+
+  if (item.ownershipScope === "unassigned") {
+    return "Unassigned owner";
+  }
+
+  return owner?.name ?? "Unknown traveller";
 }
 
 function ProgressMetric({ label, value }: { label: string; value: string }) {

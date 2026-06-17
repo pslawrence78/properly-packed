@@ -229,6 +229,11 @@ export function TripForm({
 
       <fieldset className="space-y-3">
         <legend className="text-sm font-semibold text-charcoal">Travellers</legend>
+        {travellers.length === 0 ? (
+          <p className="rounded-lg border border-amber/30 bg-amberSoft px-4 py-3 text-sm text-charcoal/75">
+            Add at least one traveller before saving a trip.
+          </p>
+        ) : null}
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {travellers.map((traveller) => (
             <label

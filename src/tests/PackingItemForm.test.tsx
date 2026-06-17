@@ -6,17 +6,9 @@ import { PackingItemForm } from "../features/packing-items/PackingItemForm";
 
 const travellers: Traveller[] = [
   {
-    id: "traveller:phil",
-    name: "Phil",
+    id: "traveller:alex",
+    name: "Alex",
     travellerType: "adult",
-    defaultIncluded: true,
-    createdAt: "2026-06-16T00:00:00.000Z",
-    updatedAt: "2026-06-16T00:00:00.000Z",
-  },
-  {
-    id: "traveller:shared-family",
-    name: "Shared Family",
-    travellerType: "shared",
     defaultIncluded: true,
     createdAt: "2026-06-16T00:00:00.000Z",
     updatedAt: "2026-06-16T00:00:00.000Z",
@@ -46,7 +38,8 @@ describe("PackingItemForm", () => {
       expect.objectContaining({
         tripId: "trip:1",
         name: "Passport",
-        ownerTravellerId: "traveller:shared-family",
+        ownershipScope: "unassigned",
+        ownerTravellerId: undefined,
         category: "documents",
         quantity: 1,
         priority: "important",
@@ -62,7 +55,8 @@ describe("PackingItemForm", () => {
       id: "item:1",
       tripId: "trip:1",
       name: "Old cable",
-      ownerTravellerId: "traveller:phil",
+      ownershipScope: "traveller",
+      ownerTravellerId: "traveller:alex",
       category: "electronics",
       quantity: 1,
       priority: "useful",
@@ -94,8 +88,37 @@ describe("PackingItemForm", () => {
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "USB-C cable",
-        ownerTravellerId: "traveller:phil",
+        ownershipScope: "traveller",
+        ownerTravellerId: "traveller:alex",
         category: "electronics",
+      }),
+    );
+  });
+
+  it("submits shared items without an owner traveller", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <PackingItemForm
+        bags={[]}
+        categories={["documents"]}
+        travellers={travellers}
+        tripId="trip:1"
+        submitLabel="Add item"
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Item name"), "Travel insurance");
+    await user.selectOptions(screen.getByLabelText("Ownership"), "shared");
+    await user.click(screen.getByRole("button", { name: "Add item" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Travel insurance",
+        ownershipScope: "shared",
+        ownerTravellerId: undefined,
       }),
     );
   });

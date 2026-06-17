@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import type { PackingItemInput } from "../../db/repositories/packing-items-repository";
 import type {
   Bag,
+  ItemOwnershipScope,
   PackingItem,
   PackingPriority,
   PackingStatus,
@@ -34,13 +35,14 @@ export function PackingItemForm({
   travellers,
   tripId,
 }: PackingItemFormProps) {
-  const defaultOwnerId =
-    initialItem?.ownerTravellerId ??
-    travellers.find((traveller) => traveller.name === "Shared Family")?.id ??
-    travellers[0]?.id ??
-    "";
+  const initialOwnershipScope =
+    initialItem?.ownershipScope ?? (initialItem?.ownerTravellerId ? "traveller" : "unassigned");
   const [name, setName] = useState(initialItem?.name ?? "");
-  const [ownerTravellerId, setOwnerTravellerId] = useState(defaultOwnerId);
+  const [ownershipScope, setOwnershipScope] =
+    useState<ItemOwnershipScope>(initialOwnershipScope);
+  const [ownerTravellerId, setOwnerTravellerId] = useState(
+    initialItem?.ownerTravellerId ?? "",
+  );
   const [responsibleTravellerId, setResponsibleTravellerId] = useState(
     initialItem?.responsibleTravellerId ?? "",
   );
@@ -65,8 +67,8 @@ export function PackingItemForm({
       return;
     }
 
-    if (!ownerTravellerId) {
-      setError("Owner is required.");
+    if (ownershipScope === "traveller" && !ownerTravellerId) {
+      setError("Select a traveller owner, or choose shared or unassigned.");
       return;
     }
 
@@ -81,7 +83,9 @@ export function PackingItemForm({
       await onSubmit({
         tripId,
         name: name.trim(),
-        ownerTravellerId,
+        ownershipScope,
+        ownerTravellerId:
+          ownershipScope === "traveller" ? ownerTravellerId : undefined,
         responsibleTravellerId: responsibleTravellerId || undefined,
         category: normaliseCategory(category),
         quantity: Math.max(1, Number.parseInt(quantity, 10) || 1),
@@ -118,19 +122,37 @@ export function PackingItemForm({
         </label>
 
         <label className="space-y-2 text-sm font-medium text-charcoal">
-          <span>Owner</span>
+          <span>Ownership</span>
           <select
             className="min-h-12 w-full rounded-lg border border-charcoal/15 bg-cream px-3 text-base outline-none focus:border-teal"
-            value={ownerTravellerId}
-            onChange={(event) => setOwnerTravellerId(event.target.value)}
+            value={ownershipScope}
+            onChange={(event) =>
+              setOwnershipScope(event.target.value as ItemOwnershipScope)
+            }
           >
-            {travellers.map((traveller) => (
-              <option key={traveller.id} value={traveller.id}>
-                {traveller.name}
-              </option>
-            ))}
+            <option value="unassigned">Unassigned</option>
+            <option value="shared">Shared</option>
+            <option value="traveller">Traveller</option>
           </select>
         </label>
+
+        {ownershipScope === "traveller" ? (
+          <label className="space-y-2 text-sm font-medium text-charcoal">
+            <span>Owner traveller</span>
+            <select
+              className="min-h-12 w-full rounded-lg border border-charcoal/15 bg-cream px-3 text-base outline-none focus:border-teal"
+              value={ownerTravellerId}
+              onChange={(event) => setOwnerTravellerId(event.target.value)}
+            >
+              <option value="">Select traveller</option>
+              {travellers.map((traveller) => (
+                <option key={traveller.id} value={traveller.id}>
+                  {traveller.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
 
         <label className="space-y-2 text-sm font-medium text-charcoal">
           <span>Responsible person</span>
@@ -139,7 +161,7 @@ export function PackingItemForm({
             value={responsibleTravellerId}
             onChange={(event) => setResponsibleTravellerId(event.target.value)}
           >
-            <option value="">Same as owner</option>
+            <option value="">No specific person</option>
             {travellers.map((traveller) => (
               <option key={traveller.id} value={traveller.id}>
                 {traveller.name}

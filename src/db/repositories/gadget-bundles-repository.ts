@@ -128,6 +128,7 @@ export async function applyGadgetBundleToTrip(
     id: createId("packing-item"),
     tripId: input.trip.id,
     name: suggestion.bundleItem.name,
+    ownershipScope: "traveller",
     ownerTravellerId: preview.ownerTraveller!.id,
     category: suggestion.bundleItem.category,
     quantity: suggestion.bundleItem.quantity,
@@ -198,7 +199,12 @@ export function buildGadgetBundlePreview(
   const suggestions = bundleItems.map((bundleItem): GadgetBundleSuggestion => {
     const duplicate =
       ownerTraveller &&
-      hasDuplicatePackingItem(existingItems, bundleItem.name, ownerTraveller.id);
+      hasDuplicatePackingItem(
+        existingItems,
+        bundleItem.name,
+        "traveller",
+        ownerTraveller.id,
+      );
 
     return {
       bundleItem,
@@ -285,7 +291,6 @@ function resolveBundleOwner(bundle: GadgetBundle, trip: Trip, travellers: Travel
 
   return (
     tripTravellers.find((traveller) => traveller.id === bundle.ownerTravellerId) ??
-    tripTravellers.find((traveller) => traveller.name === "Phil") ??
     tripTravellers.find((traveller) => traveller.travellerType === "adult") ??
     tripTravellers[0]
   );

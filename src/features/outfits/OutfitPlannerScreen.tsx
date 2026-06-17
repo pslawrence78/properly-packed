@@ -190,7 +190,7 @@ export function OutfitPlannerScreen() {
                   No outfits planned yet
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-charcoal/70">
-                  Add Beck's first day or evening outfit, then add clothing,
+                  Add a first day or evening outfit, then add clothing,
                   shoes and accessories underneath it.
                 </p>
               </section>

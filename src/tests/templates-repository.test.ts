@@ -29,7 +29,7 @@ afterEach(async () => {
 
 describe("templates repository", () => {
   it("matches template rules against trip context", () => {
-    const trip = tripRow("trip:1", ["traveller:shared"], {
+    const trip = tripRow("trip:1", ["traveller:alex"], {
       activityContexts: ["formal-night"],
     });
 
@@ -49,25 +49,24 @@ describe("templates repository", () => {
 
   it("detects duplicate suggestions by owner and normalised name", () => {
     const items: PackingItem[] = [
-      packingItem("packing-item:1", "  Passports ", "traveller:shared"),
+      packingItem("packing-item:1", "  Passports ", "shared"),
     ];
 
-    expect(hasDuplicatePackingItem(items, "passports", "traveller:shared")).toBe(true);
-    expect(hasDuplicatePackingItem(items, "passports", "traveller:phil")).toBe(false);
+    expect(hasDuplicatePackingItem(items, "passports", "shared")).toBe(true);
+    expect(
+      hasDuplicatePackingItem(items, "passports", "traveller", "traveller:alex"),
+    ).toBe(false);
   });
 
   it("previews and applies cruise templates with source tracking", async () => {
     const db = createTestDatabase();
     await applyInitialSeed(db, () => "2026-06-16T00:00:00.000Z");
-    const travellers = await db.travellers.toArray();
-    const trip = tripRow(
-      "trip:cruise",
-      travellers
-        .filter((traveller) =>
-          ["Beck", "Phil", "Seb", "Shared Family"].includes(traveller.name),
-        )
-        .map((traveller) => traveller.id),
-    );
+    const travellers = [
+      traveller("traveller:alex", "Alex", "adult"),
+      traveller("traveller:riley", "Riley", "child"),
+    ];
+    await db.travellers.bulkAdd(travellers);
+    const trip = tripRow("trip:cruise", travellers.map((traveller) => traveller.id));
     await db.trips.add(trip);
 
     const previews = await previewTemplatesForTrip(trip, travellers, db);
@@ -85,6 +84,7 @@ describe("templates repository", () => {
 
     expect(result.inserted).toBe(cruisePreview?.newCount);
     expect(insertedItems[0]).toMatchObject({
+      ownershipScope: expect.stringMatching(/shared|traveller/),
       source: "template",
       status: "needed",
     });
@@ -104,16 +104,12 @@ describe("templates repository", () => {
   it("adds useful extras to a trip with source tracking", async () => {
     const db = createTestDatabase();
     await applyInitialSeed(db, () => "2026-06-16T00:00:00.000Z");
-    const travellers = await db.travellers.toArray();
-    const trip = tripRow(
-      "trip:fly-cruise",
-      travellers
-        .filter((traveller) =>
-          ["Beck", "Phil", "Seb", "Shared Family"].includes(traveller.name),
-        )
-        .map((traveller) => traveller.id),
-      { tripType: "fly-cruise", transportModes: ["flight"] },
-    );
+    const travellers = [traveller("traveller:alex", "Alex", "adult")];
+    await db.travellers.bulkAdd(travellers);
+    const trip = tripRow("trip:fly-cruise", ["traveller:alex"], {
+      tripType: "fly-cruise",
+      transportModes: ["flight"],
+    });
     const extra = await db.usefulExtras.get(
       "seed:useful-extra:plane-comfort:empty-water-bottle",
     );
@@ -126,6 +122,7 @@ describe("templates repository", () => {
     expect(items).toMatchObject([
       {
         name: "Empty water bottle",
+        ownershipScope: "shared",
         source: "useful-extra",
         sourceId: extra!.id,
         forgottenRisk: true,
@@ -161,12 +158,14 @@ function tripRow(
 function packingItem(
   id: string,
   name: string,
-  ownerTravellerId: Traveller["id"],
+  ownershipScope: PackingItem["ownershipScope"],
+  ownerTravellerId?: Traveller["id"],
 ): PackingItem {
   return {
     id,
     tripId: "trip:1",
     name,
+    ownershipScope,
     ownerTravellerId,
     category: "documents",
     quantity: 1,
@@ -176,6 +175,21 @@ function packingItem(
     dependencyItemIds: [],
     source: "manual",
     forgottenRisk: false,
+    createdAt: "2026-06-16T00:00:00.000Z",
+    updatedAt: "2026-06-16T00:00:00.000Z",
+  };
+}
+
+function traveller(
+  id: string,
+  name: string,
+  travellerType: Traveller["travellerType"],
+): Traveller {
+  return {
+    id,
+    name,
+    travellerType,
+    defaultIncluded: true,
     createdAt: "2026-06-16T00:00:00.000Z",
     updatedAt: "2026-06-16T00:00:00.000Z",
   };

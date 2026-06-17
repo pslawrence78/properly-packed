@@ -30,7 +30,7 @@ describe("dashboard readiness utilities", () => {
       toDownload: 1,
     });
     expect(readiness.essentialsNotPacked).toMatchObject([{ name: "Passport" }]);
-    expect(readiness.unassignedCount).toBe(2);
+    expect(readiness.unassignedCount).toBe(0);
     expect(readiness.travellerReadiness).toMatchObject([
       { travellerName: "Beck", packedCount: 1, packableCount: 2, percentPacked: 50 },
       { travellerName: "Phil", packedCount: 0, packableCount: 2, percentPacked: 0 },
@@ -58,6 +58,44 @@ describe("dashboard readiness utilities", () => {
 
     expect(readiness.essentialsNotPacked).toEqual([]);
     expect(readiness.canMarkReady).toBe(true);
+  });
+
+  it("groups shared items separately from named traveller readiness", () => {
+    const readiness = buildDashboardReadiness({
+      bags: [],
+      outfitItems: [],
+      outfits: [],
+      packingItems: [
+        item("item:1", "Passports", "essential", "packed", undefined, undefined, "shared"),
+      ],
+      travellers: [traveller("traveller:alex", "Alex")],
+    });
+
+    expect(readiness.travellerReadiness).toMatchObject([
+      { travellerName: "Alex", packableCount: 0 },
+    ]);
+    expect(readiness.sharedReadiness).toMatchObject({
+      travellerName: "Shared",
+      packedCount: 1,
+      packableCount: 1,
+      percentPacked: 100,
+    });
+  });
+
+  it("blocks readiness when essential items have unassigned ownership", () => {
+    const readiness = buildDashboardReadiness({
+      bags: [],
+      outfitItems: [],
+      outfits: [],
+      packingItems: [
+        item("item:1", "Medication", "essential", "packed", undefined, undefined, "unassigned"),
+      ],
+      travellers: [],
+    });
+
+    expect(readiness.unassignedCount).toBe(1);
+    expect(readiness.unassignedEssentialItems).toMatchObject([{ name: "Medication" }]);
+    expect(readiness.canMarkReady).toBe(false);
   });
 
   it("counts dashboard action statuses", () => {
@@ -124,13 +162,15 @@ function item(
   name: string,
   priority: PackingItem["priority"],
   status: PackingItem["status"],
-  ownerTravellerId: string,
+  ownerTravellerId?: string,
   bagId?: string,
+  ownershipScope: PackingItem["ownershipScope"] = "traveller",
 ): PackingItem {
   return {
     id,
     tripId: "trip:1",
     name,
+    ownershipScope,
     ownerTravellerId,
     category: "misc",
     quantity: 1,

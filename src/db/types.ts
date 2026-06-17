@@ -1,6 +1,8 @@
 export type ISODateString = string;
 
-export type TravellerType = "adult" | "child" | "dog" | "shared";
+export type TravellerType = "adult" | "child" | "dog";
+
+export type ItemOwnershipScope = "traveller" | "shared" | "unassigned";
 
 export type TripStatus =
   | "draft"
@@ -189,7 +191,8 @@ export type PackingItem = ArchivableEntity & {
   tripId: string;
   libraryItemId?: string;
   name: string;
-  ownerTravellerId: string;
+  ownershipScope: ItemOwnershipScope;
+  ownerTravellerId?: string;
   responsibleTravellerId?: string;
   category: string;
   quantity: number;
@@ -242,7 +245,7 @@ export type OutfitItem = BaseEntity & {
 
 export type GadgetBundle = ArchivableEntity & {
   name: string;
-  ownerTravellerId: string;
+  ownerTravellerId?: string;
   applicableTripTypes: TripType[];
   applicableContexts: string[];
   notes?: string;
@@ -272,7 +275,7 @@ export type Template = BaseEntity & {
 export type TemplateItem = BaseEntity & {
   templateId: string;
   name: string;
-  ownerType: TravellerType | "selected-adult" | "selected-child";
+  ownerType: TravellerType | "selected-adult" | "selected-child" | "shared" | "unassigned";
   category: string;
   quantity: number;
   priority: PackingPriority;

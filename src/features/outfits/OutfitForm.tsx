@@ -24,7 +24,6 @@ export function OutfitForm({
     name: initialOutfit?.name ?? "",
     ownerTravellerId:
       initialOutfit?.ownerTravellerId ??
-      travellers.find((traveller) => traveller.name === "Beck")?.id ??
       travellers[0]?.id ??
       "",
     outfitType: initialOutfit?.outfitType ?? "day",

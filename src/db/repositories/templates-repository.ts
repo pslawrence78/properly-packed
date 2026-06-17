@@ -1,6 +1,7 @@
 import type { ProperlyPackedDatabase } from "../schema";
 import { appDb } from "../schema";
 import type {
+  ItemOwnershipScope,
   PackingItem,
   Template,
   TemplateConditionRule,
@@ -13,6 +14,7 @@ import type {
 export type TemplateSuggestion = {
   template: Template;
   templateItem: TemplateItem;
+  ownershipScope: ItemOwnershipScope;
   ownerTraveller?: Traveller;
   status: "new" | "duplicate" | "skipped";
   reason?: string;
@@ -106,14 +108,15 @@ export async function applyTemplateToTrip(
 ): Promise<ApplyTemplateResult> {
   const preview = await previewTemplateForTrip(templateId, trip, travellers, db);
   const newSuggestions = preview.suggestions.filter(
-    (suggestion) => suggestion.status === "new" && suggestion.ownerTraveller,
+    (suggestion) => suggestion.status === "new",
   );
   const now = new Date().toISOString();
   const items: PackingItem[] = newSuggestions.map((suggestion) => ({
     id: createId("packing-item"),
     tripId: trip.id,
     name: suggestion.templateItem.name,
-    ownerTravellerId: suggestion.ownerTraveller!.id,
+    ownershipScope: suggestion.ownershipScope,
+    ownerTravellerId: suggestion.ownerTraveller?.id,
     category: suggestion.templateItem.category,
     quantity: suggestion.templateItem.quantity,
     priority: suggestion.templateItem.priority,
@@ -155,27 +158,38 @@ export function buildTemplatePreview(
       return {
         template,
         templateItem,
+        ownershipScope: "unassigned" as const,
         status: "skipped" as const,
         reason: "Trip context does not match.",
       };
     }
 
-    const ownerTraveller = resolveTemplateOwner(templateItem.ownerType, tripTravellers);
+    const ownership = resolveTemplateOwnership(templateItem.ownerType, tripTravellers);
 
-    if (!ownerTraveller) {
+    if (!ownership) {
       return {
         template,
         templateItem,
+        ownershipScope: "unassigned" as const,
         status: "skipped" as const,
         reason: "No matching traveller is on this trip.",
       };
     }
+    const ownerTraveller =
+      ownership.ownershipScope === "traveller" ? ownership.ownerTraveller : undefined;
 
-    if (hasDuplicatePackingItem(existingItems, templateItem.name, ownerTraveller.id)) {
+    if (
+      hasDuplicatePackingItem(
+        existingItems,
+        templateItem.name,
+        ownership.ownershipScope,
+        ownerTraveller?.id,
+      )
+    ) {
       return {
         template,
         templateItem,
-        ownerTraveller,
+        ...ownership,
         status: "duplicate" as const,
         reason: "Already on this packing list.",
       };
@@ -184,7 +198,7 @@ export function buildTemplatePreview(
     return {
       template,
       templateItem,
-      ownerTraveller,
+      ...ownership,
       status: "new" as const,
     };
   });
@@ -247,31 +261,47 @@ export function rulesApply(rules: TemplateConditionRule[], trip: Trip) {
 export function hasDuplicatePackingItem(
   items: PackingItem[],
   name: string,
-  ownerTravellerId: string,
+  ownershipScope: ItemOwnershipScope,
+  ownerTravellerId?: string,
 ) {
   const normalisedName = normaliseItemName(name);
 
   return items.some(
     (item) =>
       !item.archivedAt &&
+      item.ownershipScope === ownershipScope &&
       item.ownerTravellerId === ownerTravellerId &&
       normaliseItemName(item.name) === normalisedName,
   );
 }
 
-function resolveTemplateOwner(
+function resolveTemplateOwnership(
   ownerType: TemplateItem["ownerType"],
   tripTravellers: Traveller[],
 ) {
+  if (ownerType === "shared") {
+    return { ownershipScope: "shared" as const };
+  }
+
+  if (ownerType === "unassigned") {
+    return { ownershipScope: "unassigned" as const };
+  }
+
   if (ownerType === "selected-adult") {
-    return findTravellerByType(tripTravellers, "adult");
+    return resolveTravellerOwnership(findTravellerByType(tripTravellers, "adult"));
   }
 
   if (ownerType === "selected-child") {
-    return findTravellerByType(tripTravellers, "child");
+    return resolveTravellerOwnership(findTravellerByType(tripTravellers, "child"));
   }
 
-  return findTravellerByType(tripTravellers, ownerType);
+  return resolveTravellerOwnership(findTravellerByType(tripTravellers, ownerType));
+}
+
+function resolveTravellerOwnership(ownerTraveller?: Traveller) {
+  return ownerTraveller
+    ? { ownershipScope: "traveller" as const, ownerTraveller }
+    : undefined;
 }
 
 function findTravellerByType(travellers: Traveller[], travellerType: TravellerType) {

@@ -81,7 +81,7 @@ export async function archiveBag(
 
 export async function createDefaultBagsForTrip(
   tripId: string,
-  travellers: Traveller[],
+  _travellers: Traveller[] = [],
   db: ProperlyPackedDatabase = appDb,
 ) {
   const existingBags = await listBagsForTrip(tripId, db);
@@ -90,16 +90,11 @@ export async function createDefaultBagsForTrip(
     return existingBags;
   }
 
-  const findTraveller = (name: string) =>
-    travellers.find((traveller) => traveller.name === name)?.id;
   const defaults: BagInput[] = [
-    suitcase("Beck's suitcase", findTraveller("Beck")),
-    suitcase("Phil's suitcase", findTraveller("Phil")),
-    suitcase("Seb's suitcase", findTraveller("Seb")),
-    suitcase("Shared suitcase", findTraveller("Shared Family")),
+    suitcase("Suitcase"),
     {
       tripId,
-      name: "Hand luggage",
+      name: "Cabin bag",
       bagType: "cabin-bag",
       isHandLuggage: true,
       isTravelDay: false,
@@ -115,7 +110,7 @@ export async function createDefaultBagsForTrip(
     },
     {
       tripId,
-      name: "Travel documents pouch",
+      name: "Documents pouch",
       bagType: "pouch",
       isHandLuggage: true,
       isTravelDay: true,
@@ -123,7 +118,7 @@ export async function createDefaultBagsForTrip(
     },
     {
       tripId,
-      name: "Travel day bag",
+      name: "Day bag",
       bagType: "day-bag",
       isHandLuggage: true,
       isTravelDay: true,
@@ -131,7 +126,7 @@ export async function createDefaultBagsForTrip(
     },
     {
       tripId,
-      name: "Cruise embarkation bag",
+      name: "Embarkation bag",
       bagType: "day-bag",
       isHandLuggage: true,
       isTravelDay: true,

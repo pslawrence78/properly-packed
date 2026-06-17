@@ -45,7 +45,7 @@ describe("import and export service", () => {
     expect(exportData).toMatchObject({
       schemaVersion: EXPORT_SCHEMA_VERSION,
       exportedAt: "2026-06-16T12:00:00.000Z",
-      databaseVersion: 2,
+      databaseVersion: 3,
     });
     expect(parsed.tables.travellers).toHaveLength(1);
     expect(parsed.tables.trips).toHaveLength(1);
@@ -166,9 +166,78 @@ describe("import and export service", () => {
 
     expect(result.applied).toBe(true);
     expect(await db.trips.count()).toBe(0);
-    expect(await db.travellers.count()).toBeGreaterThan(0);
+    expect(await db.travellers.count()).toBe(0);
     expect(await db.templates.count()).toBeGreaterThan(0);
     expect(await db.appSettings.get("seedVersion")).toBeDefined();
+  });
+
+  it("normalises legacy Shared Family ownership on import", async () => {
+    const exportData = await generateExportData(
+      createTestDatabase(),
+      () => "2026-06-16T12:00:00.000Z",
+    );
+    const legacyExport = {
+      ...exportData,
+      tables: {
+        ...exportData.tables,
+        travellers: [
+          traveller("traveller:alex", "Alex"),
+          {
+            ...traveller("traveller:shared-family", "Shared Family"),
+            travellerType: "shared",
+            seedKey: "traveller:shared-family",
+          },
+        ],
+        trips: [
+          {
+            ...trip("trip:legacy", "Legacy trip"),
+            travellerIds: ["traveller:alex", "traveller:shared-family"],
+          },
+        ],
+        packingItems: [
+          {
+            id: "packing-item:legacy",
+            tripId: "trip:legacy",
+            name: "Passports",
+            ownerTravellerId: "traveller:shared-family",
+            category: "documents",
+            quantity: 1,
+            priority: "essential",
+            status: "needed",
+            flags: [],
+            dependencyItemIds: [],
+            source: "manual",
+            forgottenRisk: false,
+            createdAt: "2026-06-16T00:00:00.000Z",
+            updatedAt: "2026-06-16T00:00:00.000Z",
+          },
+        ],
+        bags: [
+          {
+            id: "bag:legacy",
+            tripId: "trip:legacy",
+            name: "Shared suitcase",
+            bagType: "suitcase",
+            ownerTravellerId: "traveller:shared-family",
+            isHandLuggage: false,
+            isTravelDay: false,
+            isCruiseEmbarkation: false,
+            createdAt: "2026-06-16T00:00:00.000Z",
+            updatedAt: "2026-06-16T00:00:00.000Z",
+          },
+        ],
+      },
+    };
+
+    const validated = validateImportData(legacyExport);
+
+    expect(validated.tables.travellers).toMatchObject([{ id: "traveller:alex" }]);
+    expect(validated.tables.trips[0].travellerIds).toEqual(["traveller:alex"]);
+    expect(validated.tables.packingItems[0]).toMatchObject({
+      ownershipScope: "shared",
+    });
+    expect(validated.tables.packingItems[0].ownerTravellerId).toBeUndefined();
+    expect(validated.tables.bags[0].ownerTravellerId).toBeUndefined();
   });
 });
 

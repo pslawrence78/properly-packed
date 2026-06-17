@@ -1,4 +1,4 @@
-const CACHE_NAME = "properly-packed-shell-v0.14.0";
+const CACHE_NAME = "properly-packed-shell-v0.15.0";
 const BASE_PATH = normaliseBasePath(new URL(self.registration.scope).pathname);
 const SHELL_ASSETS = [
   withBasePath("/"),

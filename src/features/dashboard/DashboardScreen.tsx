@@ -29,6 +29,10 @@ import { listUsefulExtraSuggestionsForTrip } from "../../db/repositories/useful-
 import type { PackingItem } from "../../db/types";
 import { useAsyncData } from "../../hooks/use-async-data";
 import { buildDashboardReadiness, type DashboardReadiness } from "./dashboard-utils";
+import {
+  SHARED_OWNERSHIP_FILTER,
+  UNASSIGNED_OWNERSHIP_FILTER,
+} from "../packing-items/packing-item-utils";
 
 export function DashboardScreen() {
   const dashboard = useAsyncData(async () => {
@@ -215,7 +219,7 @@ function DashboardContent({
           <DashboardMetric
             label="Unassigned items"
             tone={readiness.unassignedCount > 0 ? "warning" : "success"}
-            to={`/trips/${activeTrip.id}/pack?bag=__unassigned`}
+            to={`/trips/${activeTrip.id}/pack?owner=${UNASSIGNED_OWNERSHIP_FILTER}`}
             value={`${readiness.unassignedCount}`}
           />
         </div>
@@ -227,7 +231,7 @@ function DashboardContent({
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      <section className="grid gap-4 lg:grid-cols-3">
         <ReadinessList
           title="Traveller readiness"
           items={readiness.travellerReadiness.map((traveller) => ({
@@ -236,6 +240,21 @@ function DashboardContent({
             percent: traveller.percentPacked,
             to: `/trips/${activeTrip.id}/pack?owner=${traveller.travellerId}`,
           }))}
+        />
+        <ReadinessList
+          title="Shared readiness"
+          items={
+            readiness.sharedReadiness.packableCount > 0
+              ? [
+                  {
+                    label: readiness.sharedReadiness.travellerName,
+                    detail: `${readiness.sharedReadiness.packedCount}/${readiness.sharedReadiness.packableCount} packed`,
+                    percent: readiness.sharedReadiness.percentPacked,
+                    to: `/trips/${activeTrip.id}/pack?owner=${SHARED_OWNERSHIP_FILTER}`,
+                  },
+                ]
+              : []
+          }
         />
         <ReadinessList
           title="Bag readiness"
@@ -307,13 +326,21 @@ function DashboardContent({
         />
       </section>
 
-      {readiness.essentialsNotPacked.length > 0 || missingDependencies.length > 0 ? (
+      {readiness.essentialsNotPacked.length > 0 ||
+      readiness.unassignedEssentialItems.length > 0 ||
+      missingDependencies.length > 0 ? (
         <section className="rounded-lg border border-clay/30 bg-clay/10 p-5 shadow-soft sm:p-6">
           <h2 className="text-lg font-semibold text-charcoal">Warnings</h2>
           <ul className="mt-4 grid gap-2 text-sm text-charcoal">
             {readiness.essentialsNotPacked.slice(0, 5).map((item) => (
               <li className="rounded-lg bg-paper px-4 py-3" key={item.id}>
                 Essential not packed: <span className="font-semibold">{item.name}</span>
+              </li>
+            ))}
+            {readiness.unassignedEssentialItems.slice(0, 5).map((item) => (
+              <li className="rounded-lg bg-paper px-4 py-3" key={`owner:${item.id}`}>
+                Essential owner undecided:{" "}
+                <span className="font-semibold">{item.name}</span>
               </li>
             ))}
             {missingDependencies.slice(0, 5).map((warning) => (

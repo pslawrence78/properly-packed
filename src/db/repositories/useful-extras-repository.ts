@@ -5,7 +5,6 @@ import { hasDuplicatePackingItem } from "./templates-repository";
 
 export type UsefulExtraSuggestion = {
   extra: UsefulExtra;
-  ownerTraveller?: Traveller;
   status: "new" | "duplicate" | "hidden";
 };
 
@@ -30,23 +29,18 @@ export async function listUsefulExtraSuggestionsForTrip(
     listUsefulExtras(db),
     db.packingItems.where("tripId").equals(trip.id).toArray(),
   ]);
-  const ownerTraveller = resolveSharedOwner(trip, travellers);
-
   return extras
     .filter((extra) => extraAppliesToTrip(extra, trip))
     .map((extra): UsefulExtraSuggestion => {
       if (extra.neverSuggest && !extra.alwaysSuggest) {
-        return { extra, ownerTraveller, status: "hidden" };
+        return { extra, status: "hidden" };
       }
 
-      if (
-        ownerTraveller &&
-        hasDuplicatePackingItem(existingItems, extra.name, ownerTraveller.id)
-      ) {
-        return { extra, ownerTraveller, status: "duplicate" };
+      if (hasDuplicatePackingItem(existingItems, extra.name, "shared")) {
+        return { extra, status: "duplicate" };
       }
 
-      return { extra, ownerTraveller, status: ownerTraveller ? "new" : "hidden" };
+      return { extra, status: "new" };
     })
     .sort(
       (a, b) =>
@@ -68,15 +62,9 @@ export async function addUsefulExtraToTrip(
     throw new Error("Useful extra not found.");
   }
 
-  const ownerTraveller = resolveSharedOwner(trip, travellers);
-
-  if (!ownerTraveller) {
-    return { inserted: false, reason: "No shared traveller is on this trip." };
-  }
-
   const existingItems = await db.packingItems.where("tripId").equals(trip.id).toArray();
 
-  if (hasDuplicatePackingItem(existingItems, extra.name, ownerTraveller.id)) {
+  if (hasDuplicatePackingItem(existingItems, extra.name, "shared")) {
     return { inserted: false, reason: "Already on this packing list." };
   }
 
@@ -85,7 +73,7 @@ export async function addUsefulExtraToTrip(
     id: createId("packing-item"),
     tripId: trip.id,
     name: extra.name,
-    ownerTravellerId: ownerTraveller.id,
+    ownershipScope: "shared",
     category: extra.category,
     quantity: 1,
     priority: extra.defaultPriority,
@@ -138,18 +126,6 @@ export function extraAppliesToTrip(extra: UsefulExtra, trip: Trip) {
     );
 
   return tripTypeMatch && contextMatch;
-}
-
-function resolveSharedOwner(trip: Trip, travellers: Traveller[]) {
-  const tripTravellers = travellers.filter((traveller) =>
-    trip.travellerIds.includes(traveller.id),
-  );
-
-  return (
-    tripTravellers.find((traveller) => traveller.travellerType === "shared") ??
-    tripTravellers.find((traveller) => traveller.travellerType === "adult") ??
-    tripTravellers[0]
-  );
 }
 
 function createId(prefix: string) {

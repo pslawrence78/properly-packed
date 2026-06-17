@@ -1,6 +1,7 @@
 import type { ProperlyPackedDatabase } from "../schema";
 import { appDb } from "../schema";
 import type {
+  ItemOwnershipScope,
   PackingItem,
   PackingItemSource,
   PackingPriority,
@@ -10,7 +11,8 @@ import type {
 export type PackingItemInput = {
   tripId: string;
   name: string;
-  ownerTravellerId: string;
+  ownershipScope: ItemOwnershipScope;
+  ownerTravellerId?: string;
   responsibleTravellerId?: string;
   category: string;
   quantity: number;
@@ -42,9 +44,11 @@ export async function createPackingItem(
   db: ProperlyPackedDatabase = appDb,
 ) {
   const now = new Date().toISOString();
+  const ownership = normaliseOwnership(input);
   const item: PackingItem = {
     id: createId("packing-item"),
     ...input,
+    ...ownership,
     quantity: Math.max(1, input.quantity),
     flags: [],
     dependencyItemIds: [],
@@ -63,12 +67,40 @@ export async function updatePackingItem(
   updates: Partial<PackingItemInput>,
   db: ProperlyPackedDatabase = appDb,
 ) {
+  const ownershipUpdates =
+    updates.ownershipScope || "ownerTravellerId" in updates
+      ? normaliseOwnership({
+          ownershipScope:
+            updates.ownershipScope ??
+            (updates.ownerTravellerId ? "traveller" : "unassigned"),
+          ownerTravellerId: updates.ownerTravellerId,
+        })
+      : {};
+
   await db.packingItems.update(id, {
     ...updates,
+    ...ownershipUpdates,
     updatedAt: new Date().toISOString(),
   });
 
   return getPackingItem(id, db);
+}
+
+export function normaliseOwnership(input: {
+  ownershipScope?: ItemOwnershipScope;
+  ownerTravellerId?: string;
+}) {
+  if (input.ownershipScope === "traveller" && input.ownerTravellerId) {
+    return {
+      ownershipScope: "traveller" as const,
+      ownerTravellerId: input.ownerTravellerId,
+    };
+  }
+
+  const ownershipScope: ItemOwnershipScope =
+    input.ownershipScope === "shared" ? "shared" : "unassigned";
+
+  return { ownershipScope, ownerTravellerId: undefined };
 }
 
 export async function updatePackingItemStatus(

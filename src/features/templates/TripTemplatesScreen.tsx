@@ -184,7 +184,7 @@ export function TemplatePreviewCard({
           >
             <span className="font-semibold">{suggestion.templateItem.name}</span>
             <span className="block text-charcoal/65">
-              {suggestion.ownerTraveller?.name ?? "No owner"} -{" "}
+              {formatTemplateOwnership(suggestion)} -{" "}
               {suggestion.status}
             </span>
           </li>
@@ -192,6 +192,20 @@ export function TemplatePreviewCard({
       </ul>
     </article>
   );
+}
+
+function formatTemplateOwnership(
+  suggestion: TemplatePreview["suggestions"][number],
+) {
+  if (suggestion.ownershipScope === "shared") {
+    return "Shared";
+  }
+
+  if (suggestion.ownershipScope === "unassigned") {
+    return "Unassigned";
+  }
+
+  return suggestion.ownerTraveller?.name ?? "No matching traveller";
 }
 
 function UsefulExtraSuggestionRow({

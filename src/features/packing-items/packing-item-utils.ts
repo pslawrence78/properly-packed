@@ -4,6 +4,9 @@ import type {
   PackingStatus,
 } from "../../db/types";
 
+export const SHARED_OWNERSHIP_FILTER = "__shared";
+export const UNASSIGNED_OWNERSHIP_FILTER = "__unassigned";
+
 export const packingStatusOptions: { value: PackingStatus; label: string }[] = [
   { value: "needed", label: "Needed" },
   { value: "to-buy", label: "To buy" },
@@ -74,7 +77,7 @@ export function filterPackingItems(
   return items.filter((item) => {
     if (
       filters.ownerTravellerId &&
-      item.ownerTravellerId !== filters.ownerTravellerId
+      !ownershipMatchesFilter(item, filters.ownerTravellerId)
     ) {
       return false;
     }
@@ -113,4 +116,16 @@ export function filterPackingItems(
 
 export function normaliseCategory(category: string) {
   return category.trim().toLowerCase().replace(/\s+/g, "-");
+}
+
+function ownershipMatchesFilter(item: PackingItem, ownerFilter: string) {
+  if (ownerFilter === SHARED_OWNERSHIP_FILTER) {
+    return item.ownershipScope === "shared";
+  }
+
+  if (ownerFilter === UNASSIGNED_OWNERSHIP_FILTER) {
+    return item.ownershipScope === "unassigned";
+  }
+
+  return item.ownershipScope === "traveller" && item.ownerTravellerId === ownerFilter;
 }

@@ -22,6 +22,7 @@ function item(): PackingItem {
     id: "item:1",
     tripId: "trip:1",
     name: "Beach shoes",
+    ownershipScope: "traveller",
     ownerTravellerId: "traveller:beck",
     category: "clothing",
     quantity: 1,

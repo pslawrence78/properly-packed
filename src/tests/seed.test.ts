@@ -22,7 +22,7 @@ afterEach(async () => {
 });
 
 describe("initial seed loader", () => {
-  it("loads family travellers and app settings once", async () => {
+  it("loads neutral starter data and app settings once", async () => {
     const db = createTestDatabase();
     const firstSeed = await applyInitialSeed(db, () => "2026-06-16T00:00:00.000Z");
     const secondSeed = await applyInitialSeed(db, () => "2026-06-17T00:00:00.000Z");
@@ -31,32 +31,26 @@ describe("initial seed loader", () => {
 
     expect(firstSeed).toMatchObject({
       applied: true,
-      seedVersion: "0.8.0",
-      travellersInserted: 5,
+      seedVersion: "0.9.0",
+      travellersInserted: 0,
       templatesInserted: 9,
       usefulExtrasInserted: 15,
       gadgetBundlesInserted: 8,
     });
     expect(secondSeed).toMatchObject({
       applied: false,
-      seedVersion: "0.8.0",
+      seedVersion: "0.9.0",
       travellersInserted: 0,
       templatesInserted: 9,
       usefulExtrasInserted: 15,
       gadgetBundlesInserted: 8,
     });
-    expect(travellers.map((traveller) => traveller.name)).toEqual([
-      "Albert",
-      "Beck",
-      "Phil",
-      "Seb",
-      "Shared Family",
-    ]);
+    expect(travellers.map((traveller) => traveller.name)).toEqual([]);
     expect(status).toMatchObject({
-      databaseVersion: 2,
-      seedVersion: "0.8.0",
-      travellerCount: 5,
-      defaultTravellerCount: 4,
+      databaseVersion: 3,
+      seedVersion: "0.9.0",
+      travellerCount: 0,
+      defaultTravellerCount: 0,
       categoryCount: 13,
       bagTypeCount: 10,
     });

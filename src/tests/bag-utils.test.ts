@@ -7,6 +7,7 @@ function item(overrides: Partial<PackingItem>): PackingItem {
     id: overrides.id ?? "item:1",
     tripId: "trip:1",
     name: overrides.name ?? "Passport",
+    ownershipScope: "traveller",
     ownerTravellerId: "traveller:phil",
     category: "documents",
     quantity: 1,

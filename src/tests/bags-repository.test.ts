@@ -28,10 +28,8 @@ afterEach(async () => {
 });
 
 const travellers: Traveller[] = [
-  traveller("traveller:beck", "Beck"),
-  traveller("traveller:phil", "Phil"),
-  traveller("traveller:seb", "Seb"),
-  traveller("traveller:shared", "Shared Family", "shared"),
+  traveller("traveller:alex", "Alex"),
+  traveller("traveller:sam", "Sam"),
 ];
 
 describe("bags repository", () => {
@@ -42,8 +40,9 @@ describe("bags repository", () => {
     await createDefaultBagsForTrip("trip:1", travellers, db);
 
     const bags = await listBagsForTrip("trip:1", db);
-    expect(bags).toHaveLength(10);
-    expect(bags.map((bag) => bag.name)).toContain("Travel day bag");
+    expect(bags).toHaveLength(7);
+    expect(bags.map((bag) => bag.name)).toContain("Day bag");
+    expect(bags.map((bag) => bag.name)).not.toContain("Alex's suitcase");
     expect(bags.some((bag) => bag.isCruiseEmbarkation)).toBe(true);
   });
 
@@ -64,7 +63,8 @@ describe("bags repository", () => {
       {
         tripId: "trip:1",
         name: "Camera",
-        ownerTravellerId: "traveller:phil",
+        ownershipScope: "traveller",
+        ownerTravellerId: "traveller:alex",
         category: "electronics",
         quantity: 1,
         priority: "important",

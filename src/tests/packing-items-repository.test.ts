@@ -32,6 +32,7 @@ describe("packing items repository", () => {
       {
         tripId: "trip:1",
         name: "Passport",
+        ownershipScope: "traveller",
         ownerTravellerId: "traveller:phil",
         category: "documents",
         quantity: 1,

@@ -3,6 +3,8 @@ import type { PackingItem } from "../db/types";
 import {
   calculatePackingProgress,
   filterPackingItems,
+  SHARED_OWNERSHIP_FILTER,
+  UNASSIGNED_OWNERSHIP_FILTER,
 } from "../features/packing-items/packing-item-utils";
 
 function item(overrides: Partial<PackingItem>): PackingItem {
@@ -10,7 +12,11 @@ function item(overrides: Partial<PackingItem>): PackingItem {
     id: overrides.id ?? "item:1",
     tripId: "trip:1",
     name: overrides.name ?? "Passport",
-    ownerTravellerId: overrides.ownerTravellerId ?? "traveller:phil",
+    ownershipScope: overrides.ownershipScope ?? "traveller",
+    ownerTravellerId:
+      "ownerTravellerId" in overrides
+        ? overrides.ownerTravellerId
+        : "traveller:phil",
     category: overrides.category ?? "documents",
     quantity: 1,
     priority: overrides.priority ?? "essential",
@@ -61,6 +67,35 @@ describe("packing item utilities", () => {
         priority: "important",
         bagId: "",
         search: "sun",
+      }),
+    ).toEqual([items[1]]);
+  });
+
+  it("filters shared and unassigned ownership states", () => {
+    const items = [
+      item({ id: "1", name: "Travel insurance", ownershipScope: "shared", ownerTravellerId: undefined }),
+      item({ id: "2", name: "Mystery cable", ownershipScope: "unassigned", ownerTravellerId: undefined }),
+    ];
+
+    expect(
+      filterPackingItems(items, {
+        ownerTravellerId: SHARED_OWNERSHIP_FILTER,
+        category: "",
+        status: "",
+        priority: "",
+        bagId: "",
+        search: "",
+      }),
+    ).toEqual([items[0]]);
+
+    expect(
+      filterPackingItems(items, {
+        ownerTravellerId: UNASSIGNED_OWNERSHIP_FILTER,
+        category: "",
+        status: "",
+        priority: "",
+        bagId: "",
+        search: "",
       }),
     ).toEqual([items[1]]);
   });

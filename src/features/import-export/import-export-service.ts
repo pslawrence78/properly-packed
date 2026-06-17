@@ -96,6 +96,8 @@ export function validateImportData(value: unknown): ProperlyPackedExport {
     }
   }
 
+  normaliseImportedOwnership(tables);
+
   return value as ProperlyPackedExport;
 }
 
@@ -154,4 +156,93 @@ export function createExportFilename(exportedAt: string) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normaliseImportedOwnership(tables: Record<string, unknown>) {
+  const travellers = Array.isArray(tables.travellers) ? tables.travellers : [];
+  const legacySharedTravellerIds = new Set(
+    travellers
+      .filter(
+        (traveller) =>
+          isRecord(traveller) &&
+          (traveller.seedKey === "traveller:shared-family" ||
+            traveller.travellerType === "shared" ||
+            (traveller.name === "Shared Family" && traveller.seedKey)),
+      )
+      .map((traveller) => (traveller as { id: string }).id),
+  );
+
+  if (Array.isArray(tables.packingItems)) {
+    tables.packingItems = tables.packingItems.map((item) => {
+      if (!isRecord(item)) {
+        return item;
+      }
+
+      const ownerTravellerId =
+        typeof item.ownerTravellerId === "string" ? item.ownerTravellerId : undefined;
+      const ownershipScope =
+        item.ownershipScope === "traveller" ||
+        item.ownershipScope === "shared" ||
+        item.ownershipScope === "unassigned"
+          ? item.ownershipScope
+          : ownerTravellerId
+            ? "traveller"
+            : "unassigned";
+
+      if (ownerTravellerId && legacySharedTravellerIds.has(ownerTravellerId)) {
+        const { ownerTravellerId: _legacyOwner, ...rest } = item;
+        return { ...rest, ownershipScope: "shared" };
+      }
+
+      if (ownershipScope !== "traveller") {
+        const { ownerTravellerId: _ownerTravellerId, ...rest } = item;
+        return { ...rest, ownershipScope };
+      }
+
+      return { ...item, ownershipScope };
+    });
+  }
+
+  if (Array.isArray(tables.bags) && legacySharedTravellerIds.size > 0) {
+    tables.bags = tables.bags.map((bag) => {
+      if (
+        isRecord(bag) &&
+        typeof bag.ownerTravellerId === "string" &&
+        legacySharedTravellerIds.has(bag.ownerTravellerId)
+      ) {
+        const { ownerTravellerId: _ownerTravellerId, ...rest } = bag;
+        return rest;
+      }
+
+      return bag;
+    });
+  }
+
+  if (Array.isArray(tables.trips) && legacySharedTravellerIds.size > 0) {
+    tables.trips = tables.trips.map((trip) => {
+      if (!isRecord(trip) || !Array.isArray(trip.travellerIds)) {
+        return trip;
+      }
+
+      return {
+        ...trip,
+        travellerIds: trip.travellerIds.filter(
+          (travellerId) =>
+            typeof travellerId !== "string" ||
+            !legacySharedTravellerIds.has(travellerId),
+        ),
+      };
+    });
+  }
+
+  if (legacySharedTravellerIds.size > 0) {
+    tables.travellers = travellers.filter(
+      (traveller) =>
+        !(
+          isRecord(traveller) &&
+          typeof traveller.id === "string" &&
+          legacySharedTravellerIds.has(traveller.id)
+        ),
+    );
+  }
 }
