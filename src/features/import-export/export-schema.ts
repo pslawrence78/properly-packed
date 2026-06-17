@@ -14,6 +14,7 @@ import type {
   TemplateItem,
   Traveller,
   Trip,
+  TripItineraryDay,
   UsefulExtra,
 } from "../../db/types";
 
@@ -22,6 +23,7 @@ export const EXPORT_SCHEMA_VERSION = "properly-packed-export-v1";
 export const exportTableNames = [
   "travellers",
   "trips",
+  "tripItineraryDays",
   "packingItems",
   "bags",
   "outfits",
@@ -43,6 +45,7 @@ export type ExportTableName = (typeof exportTableNames)[number];
 export type ExportTables = {
   travellers: Traveller[];
   trips: Trip[];
+  tripItineraryDays: TripItineraryDay[];
   packingItems: PackingItem[];
   bags: Bag[];
   outfits: Outfit[];

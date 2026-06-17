@@ -77,12 +77,19 @@ export function validateImportData(value: unknown): ProperlyPackedExport {
     throw new ImportValidationError("Database version is missing.");
   }
 
-  if (!isRecord(value.tables)) {
+  const tables = value.tables;
+
+  if (!isRecord(tables)) {
     throw new ImportValidationError("Export tables are missing.");
   }
 
   for (const tableName of exportTableNames) {
-    const tableValue = value.tables[tableName];
+    const tableValue = tables[tableName];
+
+    if (tableValue === undefined && tableName === "tripItineraryDays") {
+      tables[tableName] = [];
+      continue;
+    }
 
     if (!Array.isArray(tableValue)) {
       throw new ImportValidationError(`Table ${tableName} must be an array.`);

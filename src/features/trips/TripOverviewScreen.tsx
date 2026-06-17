@@ -62,6 +62,12 @@ export function TripOverviewScreen() {
                 <Link className="trip-action" to={`/trips/${tripData.data.trip.id}/edit`}>
                   Edit
                 </Link>
+                <Link
+                  className="trip-action"
+                  to={`/trips/${tripData.data.trip.id}/itinerary`}
+                >
+                  Itinerary
+                </Link>
                 <button
                   className="trip-action"
                   onClick={() => refreshAfter(setActiveTripId(tripData.data.trip.id))}
@@ -141,6 +147,12 @@ export function TripOverviewScreen() {
           <section className="rounded-lg border border-charcoal/10 bg-paper p-5 shadow-soft sm:p-6">
             <h2 className="text-lg font-semibold text-charcoal">Next areas</h2>
             <div className="mt-4 flex flex-wrap gap-2">
+              <Link
+                className="trip-action"
+                to={`/trips/${tripData.data.trip.id}/itinerary`}
+              >
+                Itinerary
+              </Link>
               <Link className="trip-action" to={`/trips/${tripData.data.trip.id}/pack`}>
                 Packing list
               </Link>

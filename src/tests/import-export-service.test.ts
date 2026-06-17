@@ -45,13 +45,14 @@ describe("import and export service", () => {
     expect(exportData).toMatchObject({
       schemaVersion: EXPORT_SCHEMA_VERSION,
       exportedAt: "2026-06-16T12:00:00.000Z",
-      databaseVersion: 1,
+      databaseVersion: 2,
     });
     expect(parsed.tables.travellers).toHaveLength(1);
     expect(parsed.tables.trips).toHaveLength(1);
     expect(Object.keys(parsed.tables)).toEqual([
       "travellers",
       "trips",
+      "tripItineraryDays",
       "packingItems",
       "bags",
       "outfits",
@@ -122,6 +123,35 @@ describe("import and export service", () => {
     expect(await targetDb.trips.toArray()).toMatchObject([
       { id: "trip:new", name: "Imported trip" },
     ]);
+  });
+
+  it("accepts older exports that do not include itinerary days", async () => {
+    const sourceDb = createTestDatabase();
+    const targetDb = createTestDatabase();
+    await sourceDb.travellers.add(traveller("traveller:new", "New"));
+    await sourceDb.trips.add(trip("trip:new", "Imported trip"));
+
+    const exportData = await generateExportData(
+      sourceDb,
+      () => "2026-06-16T12:00:00.000Z",
+    );
+    const olderExport = {
+      ...exportData,
+      tables: { ...exportData.tables },
+    };
+    delete (olderExport.tables as Partial<typeof olderExport.tables>)
+      .tripItineraryDays;
+
+    const validated = validateImportData(olderExport);
+
+    expect(validated.tables.tripItineraryDays).toEqual([]);
+
+    await replaceDataFromExport(validated, targetDb);
+
+    expect(await targetDb.trips.toArray()).toMatchObject([
+      { id: "trip:new", name: "Imported trip" },
+    ]);
+    expect(await targetDb.tripItineraryDays.count()).toBe(0);
   });
 
   it("resets local data and restores foundation seed data", async () => {

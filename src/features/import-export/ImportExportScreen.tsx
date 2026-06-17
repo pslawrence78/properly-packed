@@ -35,6 +35,7 @@ type PendingImport = {
 const tableLabels: Record<ExportTableName, string> = {
   travellers: "Travellers",
   trips: "Trips",
+  tripItineraryDays: "Trip itinerary days",
   packingItems: "Packing items",
   bags: "Bags",
   outfits: "Outfits",

@@ -18,7 +18,9 @@ export function NavLinkItem({ item, variant }: NavLinkItemProps) {
   const isActive = isNavigationItemActive(item, pathname);
 
   useEffect(() => {
-    if (!["Pack", "Outfits", "Gadgets", "Bags"].includes(item.label)) {
+    if (
+      !["Itinerary", "Pack", "Outfits", "Gadgets", "Bags"].includes(item.label)
+    ) {
       return;
     }
 
@@ -93,6 +95,10 @@ function getNavigationTarget(item: NavigationItem, activeTripId?: string) {
     return `/trips/${activeTripId}/pack`;
   }
 
+  if (item.label === "Itinerary") {
+    return `/trips/${activeTripId}/itinerary`;
+  }
+
   if (item.label === "Outfits") {
     return `/trips/${activeTripId}/outfits`;
   }
@@ -124,6 +130,10 @@ function isNavigationItemActive(item: NavigationItem, pathname: string) {
 
   if (item.label === "Pack") {
     return pathname.endsWith("/pack");
+  }
+
+  if (item.label === "Itinerary") {
+    return pathname.endsWith("/itinerary");
   }
 
   if (item.label === "Outfits") {

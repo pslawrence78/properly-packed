@@ -53,7 +53,7 @@ describe("initial seed loader", () => {
       "Shared Family",
     ]);
     expect(status).toMatchObject({
-      databaseVersion: 1,
+      databaseVersion: 2,
       seedVersion: "0.8.0",
       travellerCount: 5,
       defaultTravellerCount: 4,

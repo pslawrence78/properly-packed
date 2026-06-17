@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   Backpack,
   Cable,
+  CalendarDays,
   Home,
   Library,
   Luggage,
@@ -14,6 +15,7 @@ import { BagsScreen } from "../features/bags/BagsScreen";
 import { DashboardScreen } from "../features/dashboard/DashboardScreen";
 import { GadgetLibraryScreen, GadgetPlannerScreen } from "../features/gadgets";
 import { ImportExportScreen } from "../features/import-export";
+import { ItineraryScreen } from "../features/itinerary";
 import { OutfitPlannerScreen } from "../features/outfits";
 import { PackingListScreen } from "../features/packing-items/PackingListScreen";
 import { PostTripReviewScreen } from "../features/reviews";
@@ -77,6 +79,13 @@ export const appRoutes: AppRoute[] = [
     description: "Shows one trip's summary and quick links.",
     comingLater: ["Packing list", "Outfits", "Gadgets", "Bags", "Review"],
     element: <TripOverviewScreen />,
+  },
+  {
+    path: "/trips/:tripId/itinerary",
+    title: "Itinerary",
+    description: "Map trip days to destinations, travel, stays and activities.",
+    comingLater: ["Packing rules", "Outfit prompts", "Printable itinerary"],
+    element: <ItineraryScreen />,
   },
   {
     path: "/travellers",
@@ -181,6 +190,12 @@ export const desktopNavigation: NavigationItem[] = [
   { label: "Dashboard", to: "/", icon: Home, match: ["/"] },
   { label: "Trips", to: "/trips", icon: Plane, match: ["/trips"] },
   {
+    label: "Itinerary",
+    to: "/trips/demo/itinerary",
+    icon: CalendarDays,
+    match: ["/trips/demo/itinerary"],
+  },
+  {
     label: "Travellers",
     to: "/travellers",
     icon: Users,
@@ -216,6 +231,12 @@ export const desktopNavigation: NavigationItem[] = [
 
 export const mobileNavigation: NavigationItem[] = [
   { label: "Trips", to: "/trips", icon: Plane, match: ["/trips"] },
+  {
+    label: "Itinerary",
+    to: "/trips/demo/itinerary",
+    icon: CalendarDays,
+    match: ["/trips/demo/itinerary"],
+  },
   {
     label: "Pack",
     to: "/trips/demo/pack",

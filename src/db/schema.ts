@@ -16,14 +16,16 @@ import type {
   Traveller,
   UsefulExtra,
   Trip,
+  TripItineraryDay,
 } from "./types";
 
 export const DATABASE_NAME = "properly-packed-db";
-export const DATABASE_VERSION = 1;
+export const DATABASE_VERSION = 2;
 
 export class ProperlyPackedDatabase extends Dexie {
   travellers!: Table<Traveller, string>;
   trips!: Table<Trip, string>;
+  tripItineraryDays!: Table<TripItineraryDay, string>;
   packingItems!: Table<PackingItem, string>;
   bags!: Table<Bag, string>;
   outfits!: Table<Outfit, string>;
@@ -45,6 +47,7 @@ export class ProperlyPackedDatabase extends Dexie {
     this.version(DATABASE_VERSION).stores({
       travellers: "id, name, travellerType, seedKey",
       trips: "id, status, startDate, tripType",
+      tripItineraryDays: "id, tripId, dayNumber, &[tripId+dayNumber], date",
       packingItems:
         "id, tripId, ownerTravellerId, responsibleTravellerId, category, status, priority, bagId, source, forgottenRisk",
       bags: "id, tripId, ownerTravellerId, bagType",

@@ -42,17 +42,6 @@ export function calculateTripNights(startDate: string, endDate: string) {
   return Math.max(0, Math.round((end - start) / 86_400_000));
 }
 
-export function splitCommaList(value: string) {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-export function joinCommaList(value: string[]) {
-  return value.join(", ");
-}
-
 export function validateTrip(values: TripFormValues) {
   const errors: string[] = [];
 

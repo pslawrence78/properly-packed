@@ -172,6 +172,19 @@ export type Trip = ArchivableEntity & {
   notes?: string;
 };
 
+export type TripItineraryDay = BaseEntity & {
+  tripId: string;
+  dayNumber: number;
+  date: string;
+  title?: string;
+  destinationContexts: string[];
+  climateContexts: string[];
+  accommodationContexts: string[];
+  transportContexts: string[];
+  activityContexts: string[];
+  notes?: string;
+};
+
 export type PackingItem = ArchivableEntity & {
   tripId: string;
   libraryItemId?: string;
