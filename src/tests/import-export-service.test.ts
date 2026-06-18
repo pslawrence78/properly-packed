@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { ProperlyPackedDatabase } from "../db";
 import type { Traveller, Trip } from "../db/types";
 import type { ProperlyPackedExport } from "../features/import-export";
+import { APP_VERSION } from "../lib/app-version";
 import {
   EXPORT_SCHEMA_VERSION,
   generateExportData,
@@ -45,8 +46,10 @@ describe("import and export service", () => {
     expect(exportData).toMatchObject({
       schemaVersion: EXPORT_SCHEMA_VERSION,
       exportedAt: "2026-06-16T12:00:00.000Z",
+      appVersion: "0.19.0",
       databaseVersion: 4,
     });
+    expect(exportData.appVersion).toBe(APP_VERSION);
     expect(parsed.tables.travellers).toHaveLength(1);
     expect(parsed.tables.trips).toHaveLength(1);
     expect(Object.keys(parsed.tables)).toEqual([
