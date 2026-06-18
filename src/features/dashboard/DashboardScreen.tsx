@@ -14,6 +14,7 @@ import {
   WashingMachine,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { FirstRunEmptyState } from "../../components/empty-states/FirstRunEmptyState";
 import { ensureDatabaseReady } from "../../db";
 import { getActiveTripId } from "../../db/repositories/app-settings-repository";
 import { listBagsForTrip } from "../../db/repositories/bags-repository";
@@ -45,7 +46,11 @@ export function DashboardScreen() {
     const activeTrip = activeTripId ? await getTrip(activeTripId) : undefined;
 
     if (!activeTrip) {
-      return { activeTrip, tripCount: trips.length };
+      return {
+        activeTrip,
+        travellerCount: travellers.length,
+        tripCount: trips.length,
+      };
     }
 
     const [packingItems, bags, outfits, outfitItems, usefulExtraSuggestions] =
@@ -96,14 +101,23 @@ export function DashboardScreen() {
       ) : null}
       {dashboard.state === "error" ? <StatusCard message={dashboard.error} /> : null}
 
-      {dashboard.state === "ready" && !dashboard.data.activeTrip ? (
+      {dashboard.state === "ready" &&
+      !dashboard.data.activeTrip &&
+      dashboard.data.tripCount === 0 &&
+      dashboard.data.travellerCount === 0 ? (
+        <FirstRunEmptyState />
+      ) : null}
+
+      {dashboard.state === "ready" &&
+      !dashboard.data.activeTrip &&
+      (dashboard.data.tripCount > 0 || dashboard.data.travellerCount > 0) ? (
       <section className="rounded-lg border border-charcoal/10 bg-paper p-5 shadow-soft sm:p-6">
         <p className="text-sm font-semibold uppercase text-teal">Active trip</p>
           <h2 className="mt-3 text-2xl font-semibold text-charcoal">
             No active trip yet
           </h2>
           <p className="mt-2 text-sm leading-6 text-charcoal/70">
-            Create a trip, then mark it active from the trip list or trip overview.
+            Create a trip, or mark an existing trip active from its overview.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Link className="trip-action bg-slateAccent text-cream" to="/trips/new">

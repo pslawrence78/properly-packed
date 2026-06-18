@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import type { PackingItemInput } from "../../db/repositories/packing-items-repository";
 import type {
   Bag,
@@ -36,7 +36,8 @@ export function PackingItemForm({
   tripId,
 }: PackingItemFormProps) {
   const initialOwnershipScope =
-    initialItem?.ownershipScope ?? (initialItem?.ownerTravellerId ? "traveller" : "unassigned");
+    initialItem?.ownershipScope ??
+    (initialItem?.ownerTravellerId ? "traveller" : "unassigned");
   const [name, setName] = useState(initialItem?.name ?? "");
   const [ownershipScope, setOwnershipScope] =
     useState<ItemOwnershipScope>(initialOwnershipScope);
@@ -46,7 +47,9 @@ export function PackingItemForm({
   const [responsibleTravellerId, setResponsibleTravellerId] = useState(
     initialItem?.responsibleTravellerId ?? "",
   );
-  const [category, setCategory] = useState(initialItem?.category ?? categories[0] ?? "");
+  const [category, setCategory] = useState(
+    initialItem?.category ?? categories[0] ?? "misc",
+  );
   const [quantity, setQuantity] = useState(String(initialItem?.quantity ?? 1));
   const [priority, setPriority] = useState<PackingPriority>(
     initialItem?.priority ?? "important",
@@ -56,24 +59,30 @@ export function PackingItemForm({
   );
   const [bagId, setBagId] = useState(initialItem?.bagId ?? "");
   const [notes, setNotes] = useState(initialItem?.notes ?? "");
-  const [error, setError] = useState<string | undefined>();
+  const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
+
+  function changeOwnership(nextScope: ItemOwnershipScope) {
+    setOwnershipScope(nextScope);
+    if (nextScope !== "traveller") {
+      setOwnerTravellerId("");
+    }
+    setError(undefined);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
+    const parsedQuantity = Number(quantity);
     if (!name.trim()) {
-      setError("Item name is required.");
+      setError("Enter an item name.");
       return;
     }
-
+    if (!Number.isInteger(parsedQuantity) || parsedQuantity < 1) {
+      setError("Quantity must be at least 1.");
+      return;
+    }
     if (ownershipScope === "traveller" && !ownerTravellerId) {
-      setError("Select a traveller owner, or choose shared or unassigned.");
-      return;
-    }
-
-    if (!category.trim()) {
-      setError("Category is required.");
+      setError("Select a traveller, or choose Shared or Unassigned.");
       return;
     }
 
@@ -87,13 +96,17 @@ export function PackingItemForm({
         ownerTravellerId:
           ownershipScope === "traveller" ? ownerTravellerId : undefined,
         responsibleTravellerId: responsibleTravellerId || undefined,
-        category: normaliseCategory(category),
-        quantity: Math.max(1, Number.parseInt(quantity, 10) || 1),
+        category: category.trim() ? normaliseCategory(category) : "misc",
+        quantity: parsedQuantity,
         priority,
         status,
         bagId: bagId || undefined,
         notes: notes.trim() || undefined,
       });
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error ? submitError.message : "Could not save item.",
+      );
     } finally {
       setSaving(false);
     }
@@ -102,173 +115,232 @@ export function PackingItemForm({
   return (
     <form
       aria-label={initialItem ? "Edit packing item" : "Add packing item"}
-      className="space-y-4 rounded-lg border border-charcoal/10 bg-paper p-5 shadow-soft sm:p-6"
+      className="space-y-0 rounded-lg border border-charcoal/10 bg-paper p-5 shadow-soft sm:p-7"
       onSubmit={handleSubmit}
     >
       {error ? (
-        <p className="rounded-lg border border-clay/30 bg-clay/10 px-4 py-3 text-sm text-charcoal/80">
+        <p
+          className="mb-5 rounded-lg border border-clay/30 bg-clay/10 px-4 py-3 text-sm font-medium text-charcoal"
+          role="alert"
+        >
           {error}
         </p>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="space-y-2 text-sm font-medium text-charcoal">
-          <span>Item name</span>
-          <input
-            className="min-h-12 w-full rounded-lg border border-charcoal/15 bg-cream px-3 text-base outline-none focus:border-teal"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
+      <FormSection title="Item basics">
+        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_9rem]">
+          <Field label="Item name">
+            <input
+              className={controlClass}
+              onChange={(event) => setName(event.target.value)}
+              value={name}
+            />
+          </Field>
+          <Field label="Quantity">
+            <input
+              className={controlClass}
+              inputMode="numeric"
+              min="1"
+              onChange={(event) => setQuantity(event.target.value)}
+              type="number"
+              value={quantity}
+            />
+          </Field>
+        </div>
+      </FormSection>
 
-        <label className="space-y-2 text-sm font-medium text-charcoal">
-          <span>Ownership</span>
-          <select
-            className="min-h-12 w-full rounded-lg border border-charcoal/15 bg-cream px-3 text-base outline-none focus:border-teal"
-            value={ownershipScope}
-            onChange={(event) =>
-              setOwnershipScope(event.target.value as ItemOwnershipScope)
-            }
-          >
-            <option value="unassigned">Unassigned</option>
-            <option value="shared">Shared</option>
-            <option value="traveller">Traveller</option>
-          </select>
-        </label>
+      <FormSection
+        title="Ownership and responsibility"
+        description="Ownership says who the item belongs to. Responsibility says who is making sure it gets packed."
+      >
+        <fieldset>
+          <legend className="sr-only">Ownership</legend>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {([
+              ["traveller", "Traveller"],
+              ["shared", "Shared"],
+              ["unassigned", "Unassigned"],
+            ] as const).map(([value, label]) => (
+              <label
+                className={`flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border px-4 text-sm font-semibold transition focus-within:ring-2 focus-within:ring-teal/35 ${
+                  ownershipScope === value
+                    ? "border-teal bg-tealSoft text-tealDeep"
+                    : "border-charcoal/10 bg-cream text-charcoal"
+                }`}
+                key={value}
+              >
+                <input
+                  checked={ownershipScope === value}
+                  className="h-5 w-5 accent-teal"
+                  name="ownership"
+                  onChange={() => changeOwnership(value)}
+                  type="radio"
+                  value={value}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
 
-        {ownershipScope === "traveller" ? (
-          <label className="space-y-2 text-sm font-medium text-charcoal">
-            <span>Owner traveller</span>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {ownershipScope === "traveller" ? (
+            <Field label="Owner traveller">
+              <select
+                className={controlClass}
+                onChange={(event) => setOwnerTravellerId(event.target.value)}
+                value={ownerTravellerId}
+              >
+                <option value="">Select traveller</option>
+                {travellers.map((traveller) => (
+                  <option key={traveller.id} value={traveller.id}>
+                    {traveller.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : (
+            <div className="rounded-lg bg-cream px-4 py-3 text-sm leading-6 text-charcoal/68">
+              {ownershipScope === "shared"
+                ? "Use Shared for items used by the group, such as documents, medicine, chargers or sun cream."
+                : "Use Unassigned when you want to capture an item now and decide who owns it later."}
+            </div>
+          )}
+          <Field label="Responsible traveller (optional)">
             <select
-              className="min-h-12 w-full rounded-lg border border-charcoal/15 bg-cream px-3 text-base outline-none focus:border-teal"
-              value={ownerTravellerId}
-              onChange={(event) => setOwnerTravellerId(event.target.value)}
+              className={controlClass}
+              onChange={(event) => setResponsibleTravellerId(event.target.value)}
+              value={responsibleTravellerId}
             >
-              <option value="">Select traveller</option>
+              <option value="">No specific person</option>
               {travellers.map((traveller) => (
                 <option key={traveller.id} value={traveller.id}>
                   {traveller.name}
                 </option>
               ))}
             </select>
-          </label>
-        ) : null}
+          </Field>
+        </div>
+      </FormSection>
 
-        <label className="space-y-2 text-sm font-medium text-charcoal">
-          <span>Responsible person</span>
+      <FormSection title="Packing status">
+        <Field label="Status">
           <select
-            className="min-h-12 w-full rounded-lg border border-charcoal/15 bg-cream px-3 text-base outline-none focus:border-teal"
-            value={responsibleTravellerId}
-            onChange={(event) => setResponsibleTravellerId(event.target.value)}
-          >
-            <option value="">No specific person</option>
-            {travellers.map((traveller) => (
-              <option key={traveller.id} value={traveller.id}>
-                {traveller.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="space-y-2 text-sm font-medium text-charcoal">
-          <span>Category</span>
-          <input
-            className="min-h-12 w-full rounded-lg border border-charcoal/15 bg-cream px-3 text-base outline-none focus:border-teal"
-            list="packing-categories"
-            value={category}
-            onChange={(event) => setCategory(event.target.value)}
-          />
-          <datalist id="packing-categories">
-            {categories.map((categoryOption) => (
-              <option key={categoryOption} value={categoryOption} />
-            ))}
-          </datalist>
-        </label>
-
-        <label className="space-y-2 text-sm font-medium text-charcoal">
-          <span>Quantity</span>
-          <input
-            className="min-h-12 w-full rounded-lg border border-charcoal/15 bg-cream px-3 text-base outline-none focus:border-teal"
-            min="1"
-            type="number"
-            inputMode="numeric"
-            value={quantity}
-            onChange={(event) => setQuantity(event.target.value)}
-          />
-        </label>
-
-        <label className="space-y-2 text-sm font-medium text-charcoal">
-          <span>Priority</span>
-          <select
-            className="min-h-12 w-full rounded-lg border border-charcoal/15 bg-cream px-3 text-base outline-none focus:border-teal"
-            value={priority}
-            onChange={(event) =>
-              setPriority(event.target.value as PackingPriority)
-            }
-          >
-            {packingPriorityOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="space-y-2 text-sm font-medium text-charcoal">
-          <span>Status</span>
-          <select
-            className="min-h-12 w-full rounded-lg border border-charcoal/15 bg-cream px-3 text-base outline-none focus:border-teal"
-            value={status}
+            className={`${controlClass} max-w-md`}
             onChange={(event) => setStatus(event.target.value as PackingStatus)}
+            value={status}
           >
             {packingStatusOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
+              <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
-        </label>
+        </Field>
+      </FormSection>
 
-        <label className="space-y-2 text-sm font-medium text-charcoal">
-          <span>Bag</span>
+      <FormSection title="Category and priority">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Category">
+            <input
+              className={controlClass}
+              list="packing-categories"
+              onChange={(event) => setCategory(event.target.value)}
+              value={category}
+            />
+            <datalist id="packing-categories">
+              {categories.map((categoryOption) => (
+                <option key={categoryOption} value={categoryOption} />
+              ))}
+            </datalist>
+          </Field>
+          <Field label="Priority">
+            <select
+              className={controlClass}
+              onChange={(event) =>
+                setPriority(event.target.value as PackingPriority)
+              }
+              value={priority}
+            >
+              {packingPriorityOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
+      </FormSection>
+
+      <FormSection title="Bag assignment">
+        <Field label="Bag">
           <select
-            className="min-h-12 w-full rounded-lg border border-charcoal/15 bg-cream px-3 text-base outline-none focus:border-teal"
-            value={bagId}
+            className={`${controlClass} max-w-2xl`}
             onChange={(event) => setBagId(event.target.value)}
+            value={bagId}
           >
-            <option value="">Unassigned</option>
+            <option value="">No bag assigned</option>
             {bags.map((bag) => (
-              <option key={bag.id} value={bag.id}>
-                {bag.name}
-              </option>
+              <option key={bag.id} value={bag.id}>{bag.name}</option>
             ))}
           </select>
-        </label>
-      </div>
+        </Field>
+      </FormSection>
 
-      <label className="block space-y-2 text-sm font-medium text-charcoal">
-        <span>Notes</span>
-        <textarea
-          className="min-h-24 w-full rounded-lg border border-charcoal/15 bg-cream px-3 py-3 text-base outline-none focus:border-teal"
-          value={notes}
-          onChange={(event) => setNotes(event.target.value)}
-        />
-      </label>
+      <FormSection title="Notes">
+        <Field label="Notes">
+          <textarea
+            className={`${controlClass} min-h-28 py-3`}
+            onChange={(event) => setNotes(event.target.value)}
+            value={notes}
+          />
+        </Field>
+      </FormSection>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col gap-2 border-t border-charcoal/10 pt-6 sm:flex-row sm:flex-wrap">
         <button
-          className="min-h-11 rounded-lg bg-slateAccent px-4 py-3 text-sm font-semibold text-cream shadow-soft disabled:opacity-60"
+          className="min-h-12 rounded-lg bg-slateAccent px-5 text-sm font-semibold text-cream shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal disabled:opacity-60"
           disabled={saving}
           type="submit"
         >
           {saving ? "Saving..." : submitLabel}
         </button>
         {onCancel ? (
-          <button className="trip-action" onClick={onCancel} type="button">
+          <button className="trip-action min-h-12 justify-center" onClick={onCancel} type="button">
             Cancel
           </button>
         ) : null}
       </div>
     </form>
+  );
+}
+
+const controlClass =
+  "min-h-12 w-full rounded-lg border border-charcoal/15 bg-cream px-3 text-base outline-none focus:border-teal focus:ring-2 focus:ring-teal/20";
+
+function FormSection({
+  children,
+  description,
+  title,
+}: {
+  children: ReactNode;
+  description?: string;
+  title: string;
+}) {
+  return (
+    <section className="space-y-4 border-t border-charcoal/10 py-6 first:border-t-0 first:pt-0">
+      <div>
+        <h2 className="text-lg font-semibold text-charcoal">{title}</h2>
+        {description ? (
+          <p className="mt-1 text-sm leading-6 text-charcoal/65">{description}</p>
+        ) : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Field({ children, label }: { children: ReactNode; label: string }) {
+  return (
+    <label className="block space-y-2 text-sm font-medium text-charcoal">
+      <span>{label}</span>
+      {children}
+    </label>
   );
 }

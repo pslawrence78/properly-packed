@@ -37,9 +37,10 @@ describe("trips repository", () => {
         endDate: "2026-07-08",
         nights: 7,
         destinations: ["Lisbon"],
-        accommodationTypes: ["ship"],
-        transportModes: ["car"],
-        activityContexts: ["pool"],
+        climateContextIds: [],
+        accommodationContextIds: [],
+        transportContextIds: [],
+        activityContextIds: [],
         travellerIds: ["seed:traveller:beck"],
         status: "draft",
         notes: "Balcony cabin.",
@@ -64,5 +65,48 @@ describe("trips repository", () => {
 
     await archiveTrip(duplicated.id, db);
     expect(await listTrips(db)).toHaveLength(1);
+  });
+
+  it("validates context IDs against their assigned trip field", async () => {
+    const db = createTestDatabase();
+    await db.contextOptions.add({
+      id: "context:pool",
+      type: "activity",
+      label: "Pool",
+      active: true,
+      sortOrder: 0,
+      createdAt: "2026-06-17T00:00:00.000Z",
+      updatedAt: "2026-06-17T00:00:00.000Z",
+    });
+
+    await expect(createTrip({
+      name: "Invalid context trip",
+      tripType: "beach-holiday",
+      startDate: "2026-07-01",
+      endDate: "2026-07-08",
+      nights: 7,
+      destinations: [],
+      climateContextIds: ["context:pool"],
+      accommodationContextIds: [],
+      transportContextIds: [],
+      activityContextIds: [],
+      travellerIds: ["traveller:1"],
+      status: "draft",
+    }, db)).rejects.toThrow("invalid climate context");
+
+    await expect(createTrip({
+      name: "Valid context trip",
+      tripType: "beach-holiday",
+      startDate: "2026-07-01",
+      endDate: "2026-07-08",
+      nights: 7,
+      destinations: [],
+      climateContextIds: [],
+      accommodationContextIds: [],
+      transportContextIds: [],
+      activityContextIds: ["context:pool"],
+      travellerIds: ["traveller:1"],
+      status: "draft",
+    }, db)).resolves.toMatchObject({ activityContextIds: ["context:pool"] });
   });
 });

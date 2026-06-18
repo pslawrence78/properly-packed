@@ -2,6 +2,7 @@ import {
   CheckCircle2,
   CircleAlert,
   Download,
+  ListChecks,
   Settings,
   Smartphone,
   Wifi,
@@ -189,6 +190,15 @@ export function SettingsScreen() {
           <Link className="trip-action shrink-0 gap-2" to="/settings/import-export">
             <Download aria-hidden="true" className="h-4 w-4" />
             Import and export
+          </Link>
+        </div>
+      </PageSection>
+
+      <PageSection title="Trip planning options">
+        <div className="flex flex-col gap-3 text-sm text-charcoal/72 sm:flex-row sm:items-center sm:justify-between">
+          <p>Manage reusable climate, accommodation, transport and activity options.</p>
+          <Link className="trip-action shrink-0 gap-2" to="/settings/contexts">
+            <ListChecks aria-hidden="true" className="h-4 w-4" /> Manage trip contexts
           </Link>
         </div>
       </PageSection>

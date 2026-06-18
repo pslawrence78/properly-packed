@@ -1,5 +1,6 @@
 import { UsersRound } from "lucide-react";
 import { useState, type FormEvent } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ensureDatabaseReady } from "../../db";
 import type { Traveller, TravellerType } from "../../db/types";
 import {
@@ -12,9 +13,14 @@ import { useAsyncData } from "../../hooks/use-async-data";
 const travellerTypes: TravellerType[] = ["adult", "child", "dog"];
 
 export function TravellersScreen() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = getSafeReturnPath(searchParams.get("returnTo"));
   const [refreshKey, setRefreshKey] = useState(0);
   const [editingId, setEditingId] = useState<string | undefined>();
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(
+    () => searchParams.get("add") === "1",
+  );
   const travellers = useAsyncData(async () => {
     await ensureDatabaseReady();
     return listTravellers();
@@ -58,6 +64,7 @@ export function TravellersScreen() {
               onSaved={() => {
                 setShowCreateForm(false);
                 setRefreshKey((key) => key + 1);
+                if (returnTo) navigate(returnTo);
               }}
             />
           ) : null}
@@ -119,6 +126,10 @@ export function TravellersScreen() {
       ) : null}
     </section>
   );
+}
+
+function getSafeReturnPath(value: string | null) {
+  return value?.startsWith("/") && !value.startsWith("//") ? value : undefined;
 }
 
 function TravellerCreateForm({

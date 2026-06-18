@@ -2,6 +2,8 @@ import { APP_VERSION } from "../lib/app-version";
 import type {
   AppSetting,
   BagType,
+  ContextOption,
+  ContextOptionType,
   GadgetBundle,
   GadgetBundleItem,
   Template,
@@ -11,9 +13,71 @@ import type {
   TripType,
 } from "./types";
 
-export const SEED_VERSION = "0.9.0";
+export const SEED_VERSION = "0.10.0";
 
 export const seededTravellers = [];
+
+export const seededContextOptions: ContextOption[] = [
+  ...contextOptions("climate", [
+    "Hot",
+    "Warm",
+    "Mild",
+    "Cool",
+    "Cold",
+    "Snow / Winter",
+    "Wet / Rainy",
+    "Mixed / Variable",
+    "Indoor-heavy",
+    "Sun-exposed",
+  ]),
+  ...contextOptions("accommodation", [
+    "Hotel",
+    "Resort",
+    "Cruise cabin",
+    "Villa",
+    "Apartment",
+    "Cottage",
+    "Lodge",
+    "Caravan / Holiday park",
+    "Self-catering",
+    "Friends or family stay",
+    "Multi-centre / mixed accommodation",
+  ]),
+  ...contextOptions("transport", [
+    "Flight",
+    "Cruise",
+    "Car",
+    "Train",
+    "Taxi / transfer",
+    "Hire car",
+    "Walking-heavy",
+    "Coach / shuttle",
+    "Ferry",
+    "Public transport",
+  ]),
+  ...contextOptions("activity", [
+    "Pool",
+    "Beach",
+    "Theme park",
+    "Cruise formal night",
+    "Cruise embarkation",
+    "City walking",
+    "Excursion",
+    "Hiking / countryside",
+    "Restaurant / evening dining",
+    "Photography",
+    "Kids' clubs",
+    "Long travel day",
+    "Dog-friendly stay",
+    "Self-catering meals",
+    "Rainy day",
+    "Cold weather activities",
+    "Special occasion",
+    "Sport / active play",
+    "Water park",
+    "Airport overnight / stopover",
+  ]),
+];
 
 export const seededCategories = [
   "clothing",
@@ -233,6 +297,26 @@ function template(
     createdAt: "",
     updatedAt: "",
   };
+}
+
+function contextOptions(type: ContextOptionType, labels: string[]) {
+  return labels.map<ContextOption>((label, sortOrder) => {
+    const key = label
+      .toLocaleLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+    return {
+      id: `seed:context-option:${type}:${key}`,
+      seedKey: `context-option:${type}:${key}`,
+      seedVersion: SEED_VERSION,
+      type,
+      label,
+      active: true,
+      sortOrder,
+      createdAt: "",
+      updatedAt: "",
+    };
+  });
 }
 
 function templateItem(

@@ -45,12 +45,13 @@ describe("import and export service", () => {
     expect(exportData).toMatchObject({
       schemaVersion: EXPORT_SCHEMA_VERSION,
       exportedAt: "2026-06-16T12:00:00.000Z",
-      databaseVersion: 3,
+      databaseVersion: 4,
     });
     expect(parsed.tables.travellers).toHaveLength(1);
     expect(parsed.tables.trips).toHaveLength(1);
     expect(Object.keys(parsed.tables)).toEqual([
       "travellers",
+      "contextOptions",
       "trips",
       "tripItineraryDays",
       "packingItems",
@@ -107,7 +108,19 @@ describe("import and export service", () => {
     const sourceDb = createTestDatabase();
     const targetDb = createTestDatabase();
     await sourceDb.travellers.add(traveller("traveller:new", "New"));
-    await sourceDb.trips.add(trip("trip:new", "Imported trip"));
+    await sourceDb.contextOptions.add({
+      id: "context:pool",
+      type: "activity",
+      label: "Pool",
+      active: true,
+      sortOrder: 0,
+      createdAt: "2026-06-16T00:00:00.000Z",
+      updatedAt: "2026-06-16T00:00:00.000Z",
+    });
+    await sourceDb.trips.add({
+      ...trip("trip:new", "Imported trip"),
+      activityContextIds: ["context:pool"],
+    });
     await targetDb.travellers.add(traveller("traveller:old", "Old"));
 
     const exportData = await generateExportData(
@@ -121,8 +134,32 @@ describe("import and export service", () => {
       { id: "traveller:new", name: "New" },
     ]);
     expect(await targetDb.trips.toArray()).toMatchObject([
-      { id: "trip:new", name: "Imported trip" },
+      { id: "trip:new", name: "Imported trip", activityContextIds: ["context:pool"] },
     ]);
+    expect(await targetDb.contextOptions.toArray()).toMatchObject([
+      { id: "context:pool", label: "Pool" },
+    ]);
+  });
+
+  it("rejects malformed context options and orphan trip context IDs", async () => {
+    const validExport = await generateExportData(createTestDatabase());
+    const malformed = {
+      ...validExport,
+      tables: {
+        ...validExport.tables,
+        contextOptions: [{ id: "bad", type: "weather", label: "Wet" }],
+      },
+    };
+    expect(() => validateImportData(malformed)).toThrow("Context option type is invalid");
+
+    const orphaned = {
+      ...validExport,
+      tables: {
+        ...validExport.tables,
+        trips: [{ ...trip("trip:orphan", "Orphan"), activityContextIds: ["missing"] }],
+      },
+    };
+    expect(() => validateImportData(orphaned)).toThrow("invalid activity context ID");
   });
 
   it("accepts older exports that do not include itinerary days", async () => {
@@ -141,10 +178,24 @@ describe("import and export service", () => {
     };
     delete (olderExport.tables as Partial<typeof olderExport.tables>)
       .tripItineraryDays;
+    delete (olderExport.tables as Partial<typeof olderExport.tables>)
+      .contextOptions;
+    olderExport.tables.trips = olderExport.tables.trips.map((sourceTrip) => {
+      const {
+        climateContextIds: _climateContextIds,
+        accommodationContextIds: _accommodationContextIds,
+        transportContextIds: _transportContextIds,
+        activityContextIds: _activityContextIds,
+        ...legacyTrip
+      } = sourceTrip;
+      return legacyTrip as Trip;
+    });
+    Object.assign(olderExport, { schemaVersion: "properly-packed-export-v1" });
 
     const validated = validateImportData(olderExport);
 
     expect(validated.tables.tripItineraryDays).toEqual([]);
+    expect(validated.tables.contextOptions.length).toBeGreaterThan(0);
 
     await replaceDataFromExport(validated, targetDb);
 
@@ -261,6 +312,10 @@ function trip(id: string, name: string): Trip {
     endDate: "2026-08-08",
     nights: 7,
     destinations: ["Southampton"],
+    climateContextIds: [],
+    accommodationContextIds: [],
+    transportContextIds: [],
+    activityContextIds: [],
     accommodationTypes: ["ship"],
     transportModes: ["ship"],
     activityContexts: ["formal-night"],

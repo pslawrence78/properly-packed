@@ -123,15 +123,15 @@ function ItineraryEditor({
         days.flatMap((day) => day.climateContexts),
       ),
       accommodationContexts: mergeUniqueContextValues(
-        trip.accommodationTypes,
+        trip.accommodationTypes ?? [],
         days.flatMap((day) => day.accommodationContexts),
       ),
       transportContexts: mergeUniqueContextValues(
-        trip.transportModes,
+        trip.transportModes ?? [],
         days.flatMap((day) => day.transportContexts),
       ),
       activityContexts: mergeUniqueContextValues(
-        trip.activityContexts,
+        trip.activityContexts ?? [],
         days.flatMap((day) => day.activityContexts),
       ),
     }),

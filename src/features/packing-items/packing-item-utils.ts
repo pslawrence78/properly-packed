@@ -1,4 +1,6 @@
 import type {
+  Bag,
+  ItemOwnershipScope,
   PackingItem,
   PackingPriority,
   PackingStatus,
@@ -47,6 +49,27 @@ export type PackingProgress = {
   percentPacked: number;
 };
 
+export type QuickAddOwnershipDefault = {
+  ownershipScope: ItemOwnershipScope;
+  ownerTravellerId?: string;
+};
+
+export function getQuickAddOwnershipDefault(
+  ownerFilter: string,
+  travellerIds: string[],
+): QuickAddOwnershipDefault {
+  if (ownerFilter === SHARED_OWNERSHIP_FILTER) {
+    return { ownershipScope: "shared" };
+  }
+  if (ownerFilter === UNASSIGNED_OWNERSHIP_FILTER) {
+    return { ownershipScope: "unassigned" };
+  }
+  if (travellerIds.includes(ownerFilter)) {
+    return { ownershipScope: "traveller", ownerTravellerId: ownerFilter };
+  }
+  return { ownershipScope: "unassigned" };
+}
+
 export function calculatePackingProgress(
   items: Pick<PackingItem, "status">[],
 ): PackingProgress {
@@ -71,8 +94,10 @@ export function calculatePackingProgress(
 export function filterPackingItems(
   items: PackingItem[],
   filters: PackingFilters,
+  bags: Bag[] = [],
 ) {
   const search = filters.search.trim().toLowerCase();
+  const bagNames = new Map(bags.map((bag) => [bag.id, bag.name.toLowerCase()]));
 
   return items.filter((item) => {
     if (
@@ -106,7 +131,15 @@ export function filterPackingItems(
       return false;
     }
 
-    if (search && !item.name.toLowerCase().includes(search)) {
+    const searchableText = [
+      item.name,
+      item.notes ?? "",
+      item.category,
+      item.bagId ? bagNames.get(item.bagId) ?? "" : "",
+    ]
+      .join(" ")
+      .toLowerCase();
+    if (search && !searchableText.includes(search)) {
       return false;
     }
 

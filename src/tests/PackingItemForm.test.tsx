@@ -111,7 +111,7 @@ describe("PackingItemForm", () => {
     );
 
     await user.type(screen.getByLabelText("Item name"), "Travel insurance");
-    await user.selectOptions(screen.getByLabelText("Ownership"), "shared");
+    await user.click(screen.getByRole("radio", { name: "Shared" }));
     await user.click(screen.getByRole("button", { name: "Add item" }));
 
     expect(onSubmit).toHaveBeenCalledWith(
@@ -121,5 +121,50 @@ describe("PackingItemForm", () => {
         ownerTravellerId: undefined,
       }),
     );
+  });
+
+  it("hides and clears the owner when Shared or Unassigned is selected", async () => {
+    const user = userEvent.setup();
+    render(
+      <PackingItemForm
+        bags={[]}
+        categories={["documents"]}
+        travellers={travellers}
+        tripId="trip:1"
+        submitLabel="Add item"
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    await user.click(screen.getByRole("radio", { name: "Traveller" }));
+    expect(screen.getByLabelText("Owner traveller")).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Owner traveller"), "traveller:alex");
+    await user.click(screen.getByRole("radio", { name: "Shared" }));
+    expect(screen.queryByLabelText("Owner traveller")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "Unassigned" }));
+    expect(screen.queryByLabelText("Owner traveller")).not.toBeInTheDocument();
+  });
+
+  it("requires a traveller for traveller ownership", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(
+      <PackingItemForm
+        bags={[]}
+        categories={["documents"]}
+        travellers={travellers}
+        tripId="trip:1"
+        submitLabel="Add item"
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Item name"), "Passport");
+    await user.click(screen.getByRole("radio", { name: "Traveller" }));
+    await user.click(screen.getByRole("button", { name: "Add item" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Select a traveller, or choose Shared or Unassigned.",
+    );
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });

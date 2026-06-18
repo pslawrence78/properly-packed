@@ -3,6 +3,7 @@ import type { PackingItem } from "../db/types";
 import {
   calculatePackingProgress,
   filterPackingItems,
+  getQuickAddOwnershipDefault,
   SHARED_OWNERSHIP_FILTER,
   UNASSIGNED_OWNERSHIP_FILTER,
 } from "../features/packing-items/packing-item-utils";
@@ -27,6 +28,7 @@ function item(overrides: Partial<PackingItem>): PackingItem {
     forgottenRisk: false,
     createdAt: "2026-06-16T00:00:00.000Z",
     updatedAt: "2026-06-16T00:00:00.000Z",
+    ...overrides,
   };
 }
 
@@ -99,4 +101,60 @@ describe("packing item utilities", () => {
       }),
     ).toEqual([items[1]]);
   });
+
+  it("chooses quick-add ownership from the active ownership filter", () => {
+    expect(getQuickAddOwnershipDefault("", ["traveller:phil"])).toEqual({
+      ownershipScope: "unassigned",
+    });
+    expect(
+      getQuickAddOwnershipDefault("traveller:phil", ["traveller:phil"]),
+    ).toEqual({
+      ownershipScope: "traveller",
+      ownerTravellerId: "traveller:phil",
+    });
+    expect(
+      getQuickAddOwnershipDefault(SHARED_OWNERSHIP_FILTER, ["traveller:phil"]),
+    ).toEqual({ ownershipScope: "shared" });
+    expect(
+      getQuickAddOwnershipDefault(UNASSIGNED_OWNERSHIP_FILTER, ["traveller:phil"]),
+    ).toEqual({ ownershipScope: "unassigned" });
+  });
+
+  it("searches notes, categories and bag names", () => {
+    const searchable = item({
+      notes: "Keep near the tickets",
+      category: "travel-documents",
+      bagId: "bag:cabin",
+    });
+    const filters = {
+      ownerTravellerId: "",
+      category: "",
+      status: "",
+      priority: "",
+      bagId: "",
+      search: "",
+    };
+    const bags = [{ id: "bag:cabin", name: "Blue cabin bag" }] as never;
+
+    expect(filterPackingItems([searchable], { ...filters, search: "tickets" }, bags)).toEqual([searchable]);
+    expect(filterPackingItems([searchable], { ...filters, search: "documents" }, bags)).toEqual([searchable]);
+    expect(filterPackingItems([searchable], { ...filters, search: "blue cabin" }, bags)).toEqual([searchable]);
+  });
+
+  it.each(["to-buy", "to-wash", "to-charge", "to-download", "to-decide"])(
+    "filters the %s action status",
+    (status) => {
+      const matching = item({ status: status as PackingItem["status"] });
+      expect(
+        filterPackingItems([matching, item({ id: "other", status: "needed" })], {
+          ownerTravellerId: "",
+          category: "",
+          status,
+          priority: "",
+          bagId: "",
+          search: "",
+        }),
+      ).toEqual([matching]);
+    },
+  );
 });

@@ -7,12 +7,15 @@ import {
 import { APP_VERSION } from "../../lib/app-version";
 import {
   EXPORT_SCHEMA_VERSION,
+  SUPPORTED_EXPORT_SCHEMA_VERSIONS,
   exportTableNames,
   type ExportTableName,
   type ExportTables,
   type ImportPreview,
   type ProperlyPackedExport,
 } from "./export-schema";
+import { contextOptionTypes, normaliseContextLabel } from "../../db/context-options";
+import type { ContextOption, ContextOptionType } from "../../db/types";
 
 export class ImportValidationError extends Error {
   constructor(message: string) {
@@ -61,7 +64,11 @@ export function validateImportData(value: unknown): ProperlyPackedExport {
     throw new ImportValidationError("Import file must contain an object.");
   }
 
-  if (value.schemaVersion !== EXPORT_SCHEMA_VERSION) {
+  if (
+    !SUPPORTED_EXPORT_SCHEMA_VERSIONS.includes(
+      value.schemaVersion as (typeof SUPPORTED_EXPORT_SCHEMA_VERSIONS)[number],
+    )
+  ) {
     throw new ImportValidationError("Unsupported export schema version.");
   }
 
@@ -86,7 +93,10 @@ export function validateImportData(value: unknown): ProperlyPackedExport {
   for (const tableName of exportTableNames) {
     const tableValue = tables[tableName];
 
-    if (tableValue === undefined && tableName === "tripItineraryDays") {
+    if (
+      tableValue === undefined &&
+      (tableName === "tripItineraryDays" || tableName === "contextOptions")
+    ) {
       tables[tableName] = [];
       continue;
     }
@@ -97,8 +107,138 @@ export function validateImportData(value: unknown): ProperlyPackedExport {
   }
 
   normaliseImportedOwnership(tables);
+  normaliseImportedContexts(tables);
 
   return value as ProperlyPackedExport;
+}
+
+function normaliseImportedContexts(tables: Record<string, unknown>) {
+  const rawOptions = Array.isArray(tables.contextOptions) ? tables.contextOptions : [];
+  const options = rawOptions.map(validateContextOption);
+  const ids = new Set<string>();
+  const activeLabels = new Set<string>();
+
+  for (const option of options) {
+    if (ids.has(option.id)) {
+      throw new ImportValidationError(`Duplicate context option ID ${option.id}.`);
+    }
+    ids.add(option.id);
+    if (option.active && !option.archivedAt) {
+      const key = `${option.type}:${normaliseContextLabel(option.label)}`;
+      if (activeLabels.has(key)) {
+        throw new ImportValidationError(`Duplicate active ${option.type} context label.`);
+      }
+      activeLabels.add(key);
+    }
+  }
+
+  const byTypeAndLabel = new Map(
+    options.map((option) => [
+      `${option.type}:${normaliseContextLabel(option.label)}`,
+      option,
+    ]),
+  );
+  const byId = new Map(options.map((option) => [option.id, option]));
+  const trips = Array.isArray(tables.trips) ? tables.trips : [];
+
+  tables.trips = trips.map((trip) => {
+    if (!isRecord(trip)) return trip;
+    return {
+      ...trip,
+      climateContextIds: migrateTripContextField(
+        trip.climateContextIds,
+        typeof trip.climateProfile === "string" ? [trip.climateProfile] : [],
+        "climate",
+      ),
+      accommodationContextIds: migrateTripContextField(
+        trip.accommodationContextIds,
+        trip.accommodationTypes,
+        "accommodation",
+      ),
+      transportContextIds: migrateTripContextField(
+        trip.transportContextIds,
+        trip.transportModes,
+        "transport",
+      ),
+      activityContextIds: migrateTripContextField(
+        trip.activityContextIds,
+        trip.activityContexts,
+        "activity",
+      ),
+    };
+  });
+  tables.contextOptions = options;
+
+  function migrateTripContextField(
+    rawIds: unknown,
+    rawLabels: unknown,
+    type: ContextOptionType,
+  ) {
+    const result = new Set<string>();
+    const hasIdField = Array.isArray(rawIds);
+    if (hasIdField) {
+      for (const id of rawIds) {
+        if (typeof id !== "string" || byId.get(id)?.type !== type) {
+          throw new ImportValidationError(`Trip contains an invalid ${type} context ID.`);
+        }
+        result.add(id);
+      }
+    }
+    if (!hasIdField && Array.isArray(rawLabels)) {
+      for (const rawLabel of rawLabels) {
+        if (typeof rawLabel !== "string" || !rawLabel.trim()) continue;
+        const label = rawLabel.trim().replace(/\s+/g, " ");
+        const key = `${type}:${normaliseContextLabel(label)}`;
+        let option = byTypeAndLabel.get(key);
+        if (!option) {
+          const now = new Date().toISOString();
+          option = {
+            id: createContextOptionId(),
+            type,
+            label,
+            active: true,
+            sortOrder: options.filter((candidate) => candidate.type === type).length,
+            createdAt: now,
+            updatedAt: now,
+          };
+          options.push(option);
+          byTypeAndLabel.set(key, option);
+          byId.set(option.id, option);
+        }
+        result.add(option.id);
+      }
+    }
+    return [...result];
+  }
+}
+
+function validateContextOption(value: unknown): ContextOption {
+  if (!isRecord(value) || typeof value.id !== "string" || !value.id) {
+    throw new ImportValidationError("Context option ID is missing.");
+  }
+  if (!contextOptionTypes.includes(value.type as ContextOptionType)) {
+    throw new ImportValidationError("Context option type is invalid.");
+  }
+  if (typeof value.label !== "string" || !value.label.trim()) {
+    throw new ImportValidationError("Context option label is missing.");
+  }
+  if (typeof value.active !== "boolean") {
+    throw new ImportValidationError("Context option active state is invalid.");
+  }
+  if (typeof value.sortOrder !== "number" || !Number.isFinite(value.sortOrder)) {
+    throw new ImportValidationError("Context option sort order is invalid.");
+  }
+  if (typeof value.createdAt !== "string" || typeof value.updatedAt !== "string") {
+    throw new ImportValidationError("Context option timestamps are missing.");
+  }
+  return value as ContextOption;
+}
+
+function createContextOptionId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `context-option:${crypto.randomUUID()}`;
+  }
+  return `context-option:${Date.now()}:${Math.random().toString(36).slice(2)}`;
 }
 
 export function createImportPreview(data: ProperlyPackedExport): ImportPreview {

@@ -33,7 +33,7 @@ describe("Properly Packed app shell", () => {
       screen.getByRole("heading", { level: 1, name: "Trips" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Create, edit and reuse family travel plans."),
+      screen.getByText("Create, edit and reuse travel plans."),
     ).toBeInTheDocument();
   });
 

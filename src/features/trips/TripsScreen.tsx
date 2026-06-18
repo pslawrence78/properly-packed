@@ -14,6 +14,7 @@ import {
 import { listTravellers } from "../../db/repositories/travellers-repository";
 import type { Traveller, Trip } from "../../db/types";
 import { useAsyncData } from "../../hooks/use-async-data";
+import { FirstRunEmptyState } from "../../components/empty-states/FirstRunEmptyState";
 
 export function TripsScreen() {
   const [refreshKey, setRefreshKey] = useState(0);
@@ -45,7 +46,7 @@ export function TripsScreen() {
               Trips
             </h1>
             <p className="mt-3 max-w-3xl text-base leading-7 text-charcoal/74">
-              Create, edit and reuse family travel plans.
+              Create, edit and reuse travel plans.
             </p>
           </div>
           <Link
@@ -60,14 +61,22 @@ export function TripsScreen() {
       {trips.state === "loading" ? <TripStatus message="Loading trips..." /> : null}
       {trips.state === "error" ? <TripStatus message={trips.error} /> : null}
 
-      {trips.state === "ready" && trips.data.trips.length === 0 ? (
+      {trips.state === "ready" &&
+      trips.data.trips.length === 0 &&
+      trips.data.travellers.length === 0 ? (
+        <FirstRunEmptyState />
+      ) : null}
+
+      {trips.state === "ready" &&
+      trips.data.trips.length === 0 &&
+      trips.data.travellers.length > 0 ? (
         <section className="rounded-lg border border-charcoal/10 bg-paper p-5 shadow-soft sm:p-6">
           <h2 className="text-xl font-bold tracking-normal text-charcoal">
             No trips created yet
           </h2>
           <p className="mt-2 text-sm leading-6 text-charcoal/70">
-            Start with the trip basics and included travellers. Packing items
-            arrive in the next tranche.
+            Your travellers are ready. Create a trip to start organising what
+            everyone needs to pack.
           </p>
           <Link
             className="mt-5 inline-flex min-h-11 items-center rounded-lg bg-slateAccent px-4 py-3 text-sm font-semibold text-cream"

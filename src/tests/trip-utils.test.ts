@@ -14,15 +14,16 @@ describe("trip utilities", () => {
       startDate: "2026-07-08",
       endDate: "2026-07-01",
       destinations: [],
-      accommodationTypes: [],
-      transportModes: [],
-      activityContexts: [],
+      climateContextIds: [],
+      accommodationContextIds: [],
+      transportContextIds: [],
+      activityContextIds: [],
       travellerIds: [],
       status: "draft",
     });
 
     expect(errors).toContain("Trip name is required.");
     expect(errors).toContain("End date cannot be before start date.");
-    expect(errors).toContain("At least one traveller is required.");
+    expect(errors).toContain("Select at least one traveller for this trip.");
   });
 });

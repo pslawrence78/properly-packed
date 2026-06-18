@@ -34,6 +34,7 @@ type PendingImport = {
 
 const tableLabels: Record<ExportTableName, string> = {
   travellers: "Travellers",
+  contextOptions: "Trip contexts",
   trips: "Trips",
   tripItineraryDays: "Trip itinerary days",
   packingItems: "Packing items",
@@ -222,7 +223,7 @@ export function ImportExportScreen() {
       <PageSection title="Export backup">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="max-w-2xl text-sm leading-6 text-charcoal/72">
-            Export every local table using the properly-packed-export-v1 schema.
+            Export every local table using the properly-packed-export-v2 schema.
             The JSON includes a schema version and export timestamp.
           </p>
           <button

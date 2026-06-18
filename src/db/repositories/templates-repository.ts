@@ -1,5 +1,6 @@
 import type { ProperlyPackedDatabase } from "../schema";
 import { appDb } from "../schema";
+import { tripMatchesContext } from "../trip-context-matching";
 import type {
   ItemOwnershipScope,
   PackingItem,
@@ -9,6 +10,7 @@ import type {
   Traveller,
   TravellerType,
   Trip,
+  ContextOption,
 } from "../types";
 
 export type TemplateSuggestion = {
@@ -60,14 +62,15 @@ export async function previewTemplatesForTrip(
   travellers: Traveller[],
   db: ProperlyPackedDatabase = appDb,
 ) {
-  const [templates, templateItems, existingItems] = await Promise.all([
+  const [templates, templateItems, existingItems, contextOptions] = await Promise.all([
     listTemplates(db),
     db.templateItems.toArray(),
     db.packingItems.where("tripId").equals(trip.id).toArray(),
+    db.contextOptions.toArray(),
   ]);
 
   return templates
-    .filter((template) => templateAppliesToTrip(template, trip))
+    .filter((template) => templateAppliesToTrip(template, trip, contextOptions))
     .map((template) =>
       buildTemplatePreview(
         template,
@@ -75,6 +78,7 @@ export async function previewTemplatesForTrip(
         trip,
         travellers,
         existingItems,
+        contextOptions,
       ),
     )
     .sort((a, b) => b.newCount - a.newCount || a.template.name.localeCompare(b.template.name));
@@ -92,12 +96,13 @@ export async function previewTemplateForTrip(
     throw new Error("Template not found.");
   }
 
-  const [templateItems, existingItems] = await Promise.all([
+  const [templateItems, existingItems, contextOptions] = await Promise.all([
     listTemplateItems(template.id, db),
     db.packingItems.where("tripId").equals(trip.id).toArray(),
+    db.contextOptions.toArray(),
   ]);
 
-  return buildTemplatePreview(template, templateItems, trip, travellers, existingItems);
+  return buildTemplatePreview(template, templateItems, trip, travellers, existingItems, contextOptions);
 }
 
 export async function applyTemplateToTrip(
@@ -148,13 +153,14 @@ export function buildTemplatePreview(
   trip: Trip,
   travellers: Traveller[],
   existingItems: PackingItem[],
+  contextOptions: ContextOption[] = [],
 ): TemplatePreview {
   const tripTravellers = travellers.filter((traveller) =>
     trip.travellerIds.includes(traveller.id),
   );
 
   const suggestions = templateItems.map((templateItem) => {
-    if (!rulesApply(templateItem.conditionRules, trip)) {
+    if (!rulesApply(templateItem.conditionRules, trip, contextOptions)) {
       return {
         template,
         templateItem,
@@ -214,24 +220,40 @@ export function buildTemplatePreview(
   };
 }
 
-export function templateAppliesToTrip(template: Template, trip: Trip) {
+export function templateAppliesToTrip(
+  template: Template,
+  trip: Trip,
+  contextOptions: ContextOption[] = [],
+) {
   const tripTypeMatch =
     template.applicableTripTypes.length === 0 ||
     template.applicableTripTypes.includes(trip.tripType);
   const contextMatch =
     template.applicableContexts.length === 0 ||
     template.applicableContexts.some((context) =>
-      trip.activityContexts.includes(context) ||
-      trip.accommodationTypes.includes(context) ||
-      trip.transportModes.includes(context) ||
-      trip.climateProfile === context,
+      tripMatchesContext(trip, context, contextOptions),
     );
 
   return template.active && tripTypeMatch && contextMatch;
 }
 
-export function rulesApply(rules: TemplateConditionRule[], trip: Trip) {
+export function rulesApply(
+  rules: TemplateConditionRule[],
+  trip: Trip,
+  contextOptions: ContextOption[] = [],
+) {
   return rules.every((rule) => {
+    if (
+      [
+        "activityContexts",
+        "transportModes",
+        "accommodationTypes",
+        "climateProfile",
+      ].includes(rule.field)
+    ) {
+      const matches = tripMatchesContext(trip, rule.value, contextOptions);
+      return rule.operator === "not-includes" ? !matches : matches;
+    }
     const fieldValue = getTripRuleValue(rule.field, trip);
 
     if (Array.isArray(fieldValue)) {

@@ -3,6 +3,7 @@ import type {
   AppSetting,
   AuditEvent,
   Bag,
+  ContextOption,
   GadgetBundle,
   GadgetBundleItem,
   Outfit,
@@ -20,7 +21,7 @@ import type {
 } from "./types";
 
 export const DATABASE_NAME = "properly-packed-db";
-export const DATABASE_VERSION = 3;
+export const DATABASE_VERSION = 4;
 
 const storesV1 = {
   travellers: "id, name, travellerType, seedKey",
@@ -54,8 +55,14 @@ const storesV3 = {
     "id, tripId, ownershipScope, ownerTravellerId, responsibleTravellerId, category, status, priority, bagId, source, forgottenRisk",
 };
 
+const storesV4 = {
+  ...storesV3,
+  contextOptions: "id, type, label, active, sortOrder, seedKey, archivedAt",
+};
+
 export class ProperlyPackedDatabase extends Dexie {
   travellers!: Table<Traveller, string>;
+  contextOptions!: Table<ContextOption, string>;
   trips!: Table<Trip, string>;
   tripItineraryDays!: Table<TripItineraryDay, string>;
   packingItems!: Table<PackingItem, string>;
@@ -78,11 +85,102 @@ export class ProperlyPackedDatabase extends Dexie {
 
     this.version(1).stores(storesV1);
     this.version(2).stores(storesV2);
-    this.version(DATABASE_VERSION).stores(storesV3).upgrade(migrateNeutralOwnership);
+    this.version(3).stores(storesV3).upgrade(migrateNeutralOwnership);
+    this.version(DATABASE_VERSION).stores(storesV4).upgrade(migrateTripContexts);
   }
 }
 
 export const appDb = new ProperlyPackedDatabase();
+
+async function migrateTripContexts(transaction: Transaction) {
+  const now = new Date().toISOString();
+  const contextOptionsTable = transaction.table("contextOptions");
+  const optionsByTypeAndLabel = new Map<string, ContextOption>();
+
+  for (const option of await contextOptionsTable.toArray()) {
+    optionsByTypeAndLabel.set(contextKey(option.type, option.label), option);
+  }
+
+  const tripsTable = transaction.table("trips");
+  for (const trip of await tripsTable.toArray()) {
+    const climateContextIds = await migrateLabels(
+      "climate",
+      trip.climateContextIds,
+      trip.climateProfile ? [trip.climateProfile] : [],
+    );
+    const accommodationContextIds = await migrateLabels(
+      "accommodation",
+      trip.accommodationContextIds,
+      trip.accommodationTypes,
+    );
+    const transportContextIds = await migrateLabels(
+      "transport",
+      trip.transportContextIds,
+      trip.transportModes,
+    );
+    const activityContextIds = await migrateLabels(
+      "activity",
+      trip.activityContextIds,
+      trip.activityContexts,
+    );
+    await tripsTable.put({
+      ...trip,
+      climateContextIds,
+      accommodationContextIds,
+      transportContextIds,
+      activityContextIds,
+      updatedAt: now,
+    });
+  }
+
+  async function migrateLabels(
+    type: ContextOption["type"],
+    existingIds: unknown,
+    labels: unknown,
+  ) {
+    const nextIds = new Set(
+      Array.isArray(existingIds)
+        ? existingIds.filter((id): id is string => typeof id === "string")
+        : [],
+    );
+    const sourceLabels = Array.isArray(labels)
+      ? labels.filter((label): label is string => typeof label === "string")
+      : [];
+
+    for (const sourceLabel of sourceLabels) {
+      const label = sourceLabel.trim().replace(/\s+/g, " ");
+      if (!label) continue;
+      const key = contextKey(type, label);
+      let option = optionsByTypeAndLabel.get(key);
+      if (!option) {
+        option = {
+          id: createMigrationId(),
+          type,
+          label,
+          active: true,
+          sortOrder: optionsByTypeAndLabel.size,
+          createdAt: now,
+          updatedAt: now,
+        };
+        await contextOptionsTable.add(option);
+        optionsByTypeAndLabel.set(key, option);
+      }
+      nextIds.add(option.id);
+    }
+    return [...nextIds];
+  }
+}
+
+function contextKey(type: ContextOption["type"], label: string) {
+  return `${type}:${label.trim().replace(/\s+/g, " ").toLocaleLowerCase()}`;
+}
+
+function createMigrationId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `context-option:${crypto.randomUUID()}`;
+  }
+  return `context-option:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+}
 
 async function migrateNeutralOwnership(transaction: Transaction) {
   const now = new Date().toISOString();

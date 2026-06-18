@@ -10,10 +10,10 @@ export type TripInput = {
   endDate: string;
   nights: number;
   destinations: string[];
-  climateProfile?: string;
-  accommodationTypes: string[];
-  transportModes: string[];
-  activityContexts: string[];
+  climateContextIds: string[];
+  accommodationContextIds: string[];
+  transportContextIds: string[];
+  activityContextIds: string[];
   travellerIds: string[];
   status: TripStatus;
   notes?: string;
@@ -39,6 +39,7 @@ export async function createTrip(
   input: TripInput,
   db: ProperlyPackedDatabase = appDb,
 ) {
+  await validateTripContextIds(input, db);
   const now = new Date().toISOString();
   const trip: Trip = {
     id: createId("trip"),
@@ -56,6 +57,11 @@ export async function updateTrip(
   updates: Partial<TripInput>,
   db: ProperlyPackedDatabase = appDb,
 ) {
+  const existing = await getTrip(id, db);
+  if (!existing) {
+    throw new Error("Trip not found.");
+  }
+  await validateTripContextIds({ ...existing, ...updates }, db);
   await db.trips.update(id, {
     ...updates,
     updatedAt: new Date().toISOString(),
@@ -98,16 +104,45 @@ export async function duplicateTripShell(
       endDate: trip.endDate,
       nights: trip.nights,
       destinations: [...trip.destinations],
-      climateProfile: trip.climateProfile,
-      accommodationTypes: [...trip.accommodationTypes],
-      transportModes: [...trip.transportModes],
-      activityContexts: [...trip.activityContexts],
+      climateContextIds: [...(trip.climateContextIds ?? [])],
+      accommodationContextIds: [...(trip.accommodationContextIds ?? [])],
+      transportContextIds: [...(trip.transportContextIds ?? [])],
+      activityContextIds: [...(trip.activityContextIds ?? [])],
       travellerIds: [...trip.travellerIds],
       status: "draft",
       notes: trip.notes,
     },
     db,
   );
+}
+
+async function validateTripContextIds(
+  input: Pick<
+    TripInput,
+    | "climateContextIds"
+    | "accommodationContextIds"
+    | "transportContextIds"
+    | "activityContextIds"
+  >,
+  db: ProperlyPackedDatabase,
+) {
+  const expectedTypes = [
+    ["climateContextIds", "climate"],
+    ["accommodationContextIds", "accommodation"],
+    ["transportContextIds", "transport"],
+    ["activityContextIds", "activity"],
+  ] as const;
+
+  for (const [field, type] of expectedTypes) {
+    const ids = input[field] ?? [];
+    if (new Set(ids).size !== ids.length) {
+      throw new Error("Trip context selections cannot contain duplicates.");
+    }
+    const options = await db.contextOptions.bulkGet(ids);
+    if (options.some((option) => !option || option.type !== type)) {
+      throw new Error(`Trip contains an invalid ${type} context selection.`);
+    }
+  }
 }
 
 function createId(prefix: string) {

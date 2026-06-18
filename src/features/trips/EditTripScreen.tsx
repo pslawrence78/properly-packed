@@ -1,6 +1,7 @@
 import { Plane } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ensureDatabaseReady } from "../../db";
+import { listContextOptions } from "../../db/repositories/context-options-repository";
 import { getTrip, updateTrip } from "../../db/repositories/trips-repository";
 import { listTravellers } from "../../db/repositories/travellers-repository";
 import { useAsyncData } from "../../hooks/use-async-data";
@@ -11,16 +12,17 @@ export function EditTripScreen() {
   const { tripId } = useParams();
   const tripData = useAsyncData(async () => {
     await ensureDatabaseReady();
-    const [trip, travellers] = await Promise.all([
+    const [trip, travellers, contextOptions] = await Promise.all([
       tripId ? getTrip(tripId) : undefined,
       listTravellers(),
+      listContextOptions(),
     ]);
 
     if (!trip) {
       throw new Error("Trip not found.");
     }
 
-    return { trip, travellers };
+    return { trip, travellers, contextOptions };
   }, [tripId]);
 
   return (
@@ -44,6 +46,7 @@ export function EditTripScreen() {
         <TripForm
           initialTrip={tripData.data.trip}
           travellers={tripData.data.travellers}
+          contextOptions={tripData.data.contextOptions}
           submitLabel="Save trip"
           onSubmit={async (trip) => {
             await updateTrip(tripData.data.trip.id, trip);

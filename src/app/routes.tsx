@@ -20,6 +20,7 @@ import { OutfitPlannerScreen } from "../features/outfits";
 import { PackingListScreen } from "../features/packing-items/PackingListScreen";
 import { PostTripReviewScreen } from "../features/reviews";
 import { SettingsScreen } from "../features/settings/SettingsScreen";
+import { ContextsSettingsScreen } from "../features/settings/ContextsSettingsScreen";
 import { TemplateLibraryScreen, TripTemplatesScreen } from "../features/templates";
 import { CreateTripScreen } from "../features/trips/CreateTripScreen";
 import { EditTripScreen } from "../features/trips/EditTripScreen";
@@ -163,6 +164,13 @@ export const appRoutes: AppRoute[] = [
     description: "Reusable gadget, charger, cable and download kits.",
     comingLater: ["Bundle editor", "Device inventory", "Dependency inference"],
     element: <GadgetLibraryScreen />,
+  },
+  {
+    path: "/settings/contexts",
+    title: "Trip Contexts",
+    description: "Manage reusable trip context options.",
+    comingLater: ["Template rule editor", "Itinerary assignment"],
+    element: <ContextsSettingsScreen />,
   },
   {
     path: "/settings/import-export",

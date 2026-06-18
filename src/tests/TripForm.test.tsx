@@ -1,7 +1,8 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
-import type { Traveller, Trip } from "../db/types";
+import type { ContextOption, ContextOptionType, Traveller, Trip } from "../db/types";
 import { TripForm } from "../features/trips/TripForm";
 
 const travellers: Traveller[] = [
@@ -13,131 +14,50 @@ const travellers: Traveller[] = [
     createdAt: "2026-06-16T00:00:00.000Z",
     updatedAt: "2026-06-16T00:00:00.000Z",
   },
-  {
-    id: "traveller:albert",
-    name: "Albert",
-    travellerType: "dog",
-    defaultIncluded: false,
-    createdAt: "2026-06-16T00:00:00.000Z",
-    updatedAt: "2026-06-16T00:00:00.000Z",
-  },
+];
+
+const contextOptions = [
+  context("climate:warm", "climate", "Warm"),
+  context("accommodation:cruise", "accommodation", "Cruise cabin"),
+  context("transport:flight", "transport", "Flight"),
+  context("activity:formal", "activity", "Cruise formal night"),
+  context("activity:travel", "activity", "Long travel day"),
+  context("activity:museum", "activity", "Museum day", false),
 ];
 
 describe("TripForm", () => {
-  it("submits a valid create trip payload", async () => {
+  it("submits selected context IDs and a destination containing spaces and commas", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn().mockResolvedValue(undefined);
-
-    render(
-      <TripForm
-        travellers={travellers}
-        submitLabel="Create trip"
-        onSubmit={onSubmit}
-      />,
-    );
+    renderForm(<TripForm travellers={travellers} contextOptions={contextOptions} submitLabel="Create trip" onSubmit={onSubmit} />);
 
     await user.type(screen.getByLabelText("Trip name"), "Summer Cruise");
     await user.type(screen.getByLabelText("Start date"), "2026-07-01");
     await user.type(screen.getByLabelText("End date"), "2026-07-08");
+    await user.type(screen.getByLabelText("Destinations"), "New York, USA");
+    await user.click(within(screen.getByLabelText("Destinations").parentElement as HTMLElement).getByRole("button", { name: "Add destination" }));
+
+    await selectContext(user, "Climate Profiles", "climate:warm");
+    await selectContext(user, "Accommodation Types", "accommodation:cruise");
+    await selectContext(user, "Transport Modes", "transport:flight");
+    await selectContext(user, "Activity Contexts", "activity:formal");
+    await selectContext(user, "Activity Contexts", "activity:travel");
     await user.click(screen.getByRole("button", { name: "Create trip" }));
 
-    expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: "Summer Cruise",
-        nights: 7,
-        travellerIds: ["traveller:beck"],
-      }),
-    );
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      destinations: ["New York, USA"],
+      climateContextIds: ["climate:warm"],
+      accommodationContextIds: ["accommodation:cruise"],
+      transportContextIds: ["transport:flight"],
+      activityContextIds: ["activity:formal", "activity:travel"],
+      nights: 7,
+      travellerIds: ["traveller:beck"],
+    }));
+    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty("climateProfile");
+    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty("activityContexts");
   });
 
-  it("submits trip context values containing spaces and commas", async () => {
-    const user = userEvent.setup();
-    const onSubmit = vi.fn().mockResolvedValue(undefined);
-
-    render(
-      <TripForm
-        travellers={travellers}
-        submitLabel="Create trip"
-        onSubmit={onSubmit}
-      />,
-    );
-
-    await user.type(screen.getByLabelText("Trip name"), "Realistic Trip");
-    await user.type(screen.getByLabelText("Start date"), "2026-07-01");
-    await user.type(screen.getByLabelText("End date"), "2026-07-08");
-
-    await addEntry(user, "Destinations", "New York, USA");
-    await addEntry(user, "Destinations", "Rome, Italy");
-    await addEntry(user, "Climate profile", "warm");
-    await addEntry(user, "Climate profile", "mixed");
-    await addEntry(user, "Accommodation types", "Cruise cabin");
-    await addEntry(user, "Accommodation types", "Self-catering apartment");
-    await addEntry(user, "Transport modes", "Taxi or private transfer");
-    await addEntry(user, "Transport modes", "Walking-heavy trip");
-    await addEntry(user, "Activity contexts", "Cruise formal night");
-    await addEntry(user, "Activity contexts", "Long travel day");
-    await addEntry(user, "Activity contexts", "Kids' clubs");
-
-    await user.click(screen.getByRole("button", { name: "Create trip" }));
-
-    expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        destinations: ["New York, USA", "Rome, Italy"],
-        climateProfile: "warm, mixed",
-        accommodationTypes: ["Cruise cabin", "Self-catering apartment"],
-        transportModes: ["Taxi or private transfer", "Walking-heavy trip"],
-        activityContexts: [
-          "Cruise formal night",
-          "Long travel day",
-          "Kids' clubs",
-        ],
-      }),
-    );
-  });
-
-  it("commits pending trip context text when the form is submitted", async () => {
-    const user = userEvent.setup();
-    const onSubmit = vi.fn().mockResolvedValue(undefined);
-
-    render(
-      <TripForm
-        travellers={travellers}
-        submitLabel="Create trip"
-        onSubmit={onSubmit}
-      />,
-    );
-
-    await user.type(screen.getByLabelText("Trip name"), "Submit Draft Trip");
-    await user.type(screen.getByLabelText("Start date"), "2026-07-01");
-    await user.type(screen.getByLabelText("End date"), "2026-07-08");
-    await user.type(screen.getByLabelText("Destinations"), "Dubai, UAE");
-    await user.type(screen.getByLabelText("Climate profile"), "hot and humid");
-    await user.type(
-      screen.getByLabelText("Accommodation types"),
-      "Mixed accommodation",
-    );
-    await user.type(
-      screen.getByLabelText("Transport modes"),
-      "Taxi or private transfer",
-    );
-    await user.type(screen.getByLabelText("Activity contexts"), "Kids’ clubs");
-
-    await user.click(screen.getByRole("button", { name: "Create trip" }));
-
-    expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        destinations: ["Dubai, UAE"],
-        climateProfile: "hot and humid",
-        accommodationTypes: ["Mixed accommodation"],
-        transportModes: ["Taxi or private transfer"],
-        activityContexts: ["Kids’ clubs"],
-      }),
-    );
-  });
-
-  it("renders, removes and adds trip context values when editing", async () => {
-    const user = userEvent.setup();
-    const onSubmit = vi.fn().mockResolvedValue(undefined);
+  it("keeps inactive and unknown saved contexts readable", () => {
     const trip: Trip = {
       id: "trip:summer",
       name: "Summer Cruise",
@@ -145,65 +65,74 @@ describe("TripForm", () => {
       startDate: "2026-07-01",
       endDate: "2026-07-08",
       nights: 7,
-      destinations: ["New York, USA", "Rome, Italy"],
-      climateProfile: "warm, mixed",
-      accommodationTypes: ["Cruise cabin", "Self-catering apartment"],
-      transportModes: ["Taxi or private transfer", "Walking-heavy trip"],
-      activityContexts: ["Cruise formal night", "Long travel day"],
+      destinations: ["Rome, Italy"],
+      climateContextIds: ["climate:warm"],
+      accommodationContextIds: ["accommodation:cruise"],
+      transportContextIds: ["transport:flight"],
+      activityContextIds: ["activity:museum", "activity:missing"],
       travellerIds: ["traveller:beck"],
       status: "planning",
-      notes: "Existing notes",
       createdAt: "2026-06-16T00:00:00.000Z",
       updatedAt: "2026-06-16T00:00:00.000Z",
     };
 
-    render(
-      <TripForm
-        travellers={travellers}
-        initialTrip={trip}
-        submitLabel="Save trip"
-        onSubmit={onSubmit}
-      />,
-    );
+    renderForm(<TripForm travellers={travellers} contextOptions={contextOptions} initialTrip={trip} submitLabel="Save trip" onSubmit={vi.fn()} />);
 
-    expect(screen.getByText("New York, USA")).toBeInTheDocument();
+    expect(screen.getByText("Museum day")).toBeInTheDocument();
+    expect(screen.getByText("Inactive")).toBeInTheDocument();
+    expect(screen.getByText("Unknown context")).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Activity Contexts")).queryByRole("option", { name: "Museum day" })).not.toBeInTheDocument();
     expect(screen.getByText("Rome, Italy")).toBeInTheDocument();
-    expect(screen.getByText("warm")).toBeInTheDocument();
-    expect(screen.getByText("mixed")).toBeInTheDocument();
-    expect(screen.getByText("Taxi or private transfer")).toBeInTheDocument();
-    expect(screen.getByText("Long travel day")).toBeInTheDocument();
+  });
 
-    await user.click(screen.getByRole("button", { name: "Remove Rome, Italy" }));
-    await addEntry(user, "Destinations", "Barcelona, Spain");
-    await user.click(screen.getByRole("button", { name: "Remove mixed" }));
-    await addEntry(user, "Climate profile", "cool evenings");
+  it("requires a traveller and clears the inline error after selection", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    renderForm(<TripForm travellers={travellers} contextOptions={contextOptions} submitLabel="Create trip" onSubmit={onSubmit} />);
 
-    await user.click(screen.getByRole("button", { name: "Save trip" }));
+    await user.type(screen.getByLabelText("Trip name"), "City break");
+    await user.type(screen.getByLabelText("Start date"), "2026-09-01");
+    await user.type(screen.getByLabelText("End date"), "2026-09-04");
+    await user.click(screen.getByRole("checkbox", { name: /Beck/i }));
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
 
-    expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        destinations: ["New York, USA", "Barcelona, Spain"],
-        climateProfile: "warm, cool evenings",
-        accommodationTypes: ["Cruise cabin", "Self-catering apartment"],
-        transportModes: ["Taxi or private transfer", "Walking-heavy trip"],
-        activityContexts: ["Cruise formal night", "Long travel day"],
-        notes: "Existing notes",
-        nights: 7,
-      }),
-    );
+    expect(screen.getAllByText("Select at least one traveller for this trip.").length).toBeGreaterThan(0);
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("checkbox", { name: /Beck/i }));
+    expect(screen.queryByText("Select at least one traveller for this trip.")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ travellerIds: ["traveller:beck"] }));
   });
 });
 
-async function addEntry(
+async function selectContext(
   user: ReturnType<typeof userEvent.setup>,
   label: string,
-  value: string,
+  id: string,
 ) {
-  const input = screen.getByLabelText(label);
-  await user.type(input, value);
-  await user.click(
-    within(input.parentElement as HTMLElement).getByRole("button", {
-      name: "Add",
-    }),
-  );
+  await user.selectOptions(screen.getByLabelText(label), id);
+  await user.click(screen.getByRole("button", { name: `Add ${label}` }));
+}
+
+function renderForm(form: JSX.Element) {
+  return render(<MemoryRouter>{form}</MemoryRouter>);
+}
+
+function context(
+  id: string,
+  type: ContextOptionType,
+  label: string,
+  active = true,
+): ContextOption {
+  return {
+    id,
+    type,
+    label,
+    active,
+    sortOrder: 0,
+    archivedAt: active ? undefined : "2026-06-16T00:00:00.000Z",
+    createdAt: "2026-06-16T00:00:00.000Z",
+    updatedAt: "2026-06-16T00:00:00.000Z",
+  };
 }

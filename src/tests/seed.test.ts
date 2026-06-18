@@ -31,24 +31,26 @@ describe("initial seed loader", () => {
 
     expect(firstSeed).toMatchObject({
       applied: true,
-      seedVersion: "0.9.0",
+      seedVersion: "0.10.0",
       travellersInserted: 0,
       templatesInserted: 9,
       usefulExtrasInserted: 15,
       gadgetBundlesInserted: 8,
+      contextOptionsInserted: 51,
     });
     expect(secondSeed).toMatchObject({
       applied: false,
-      seedVersion: "0.9.0",
+      seedVersion: "0.10.0",
       travellersInserted: 0,
       templatesInserted: 9,
       usefulExtrasInserted: 15,
       gadgetBundlesInserted: 8,
+      contextOptionsInserted: 0,
     });
     expect(travellers.map((traveller) => traveller.name)).toEqual([]);
     expect(status).toMatchObject({
-      databaseVersion: 3,
-      seedVersion: "0.9.0",
+      databaseVersion: 4,
+      seedVersion: "0.10.0",
       travellerCount: 0,
       defaultTravellerCount: 0,
       categoryCount: 13,
@@ -59,5 +61,6 @@ describe("initial seed loader", () => {
     expect(await db.usefulExtras.count()).toBe(15);
     expect(await db.gadgetBundles.count()).toBe(8);
     expect(await db.gadgetBundleItems.count()).toBe(34);
+    expect(await db.contextOptions.count()).toBe(51);
   });
 });

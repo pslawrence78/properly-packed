@@ -43,13 +43,13 @@ export async function createPackingItem(
   input: PackingItemInput,
   db: ProperlyPackedDatabase = appDb,
 ) {
+  const validated = await validatePackingItemInput(input, db);
   const now = new Date().toISOString();
-  const ownership = normaliseOwnership(input);
+  const ownership = normaliseOwnership(validated);
   const item: PackingItem = {
     id: createId("packing-item"),
-    ...input,
+    ...validated,
     ...ownership,
-    quantity: Math.max(1, input.quantity),
     flags: [],
     dependencyItemIds: [],
     source: "manual" satisfies PackingItemSource,
@@ -67,23 +67,86 @@ export async function updatePackingItem(
   updates: Partial<PackingItemInput>,
   db: ProperlyPackedDatabase = appDb,
 ) {
-  const ownershipUpdates =
-    updates.ownershipScope || "ownerTravellerId" in updates
-      ? normaliseOwnership({
-          ownershipScope:
-            updates.ownershipScope ??
-            (updates.ownerTravellerId ? "traveller" : "unassigned"),
-          ownerTravellerId: updates.ownerTravellerId,
-        })
-      : {};
+  const existing = await getPackingItem(id, db);
+  if (!existing) {
+    throw new Error("Packing item not found.");
+  }
+  const validated = await validatePackingItemInput(
+    {
+      tripId: updates.tripId ?? existing.tripId,
+      name: updates.name ?? existing.name,
+      ownershipScope: updates.ownershipScope ?? existing.ownershipScope,
+      ownerTravellerId:
+        "ownerTravellerId" in updates
+          ? updates.ownerTravellerId
+          : existing.ownerTravellerId,
+      responsibleTravellerId:
+        "responsibleTravellerId" in updates
+          ? updates.responsibleTravellerId
+          : existing.responsibleTravellerId,
+      category: updates.category ?? existing.category,
+      quantity: updates.quantity ?? existing.quantity,
+      priority: updates.priority ?? existing.priority,
+      status: updates.status ?? existing.status,
+      bagId: "bagId" in updates ? updates.bagId : existing.bagId,
+      notes: "notes" in updates ? updates.notes : existing.notes,
+    },
+    db,
+  );
+  const ownershipUpdates = normaliseOwnership(validated);
 
   await db.packingItems.update(id, {
-    ...updates,
+    ...validated,
     ...ownershipUpdates,
     updatedAt: new Date().toISOString(),
   });
 
   return getPackingItem(id, db);
+}
+
+export async function validatePackingItemInput(
+  input: PackingItemInput,
+  db: ProperlyPackedDatabase = appDb,
+): Promise<PackingItemInput> {
+  const name = input.name.trim();
+  if (!name) {
+    throw new Error("Enter an item name.");
+  }
+  if (!Number.isInteger(input.quantity) || input.quantity < 1) {
+    throw new Error("Quantity must be at least 1.");
+  }
+
+  if (input.ownershipScope === "traveller") {
+    if (!input.ownerTravellerId) {
+      throw new Error("Select a traveller, or choose Shared or Unassigned.");
+    }
+    if (!(await db.travellers.get(input.ownerTravellerId))) {
+      throw new Error("The selected owner traveller no longer exists.");
+    }
+  }
+
+  if (
+    input.responsibleTravellerId &&
+    !(await db.travellers.get(input.responsibleTravellerId))
+  ) {
+    throw new Error("The selected responsible traveller no longer exists.");
+  }
+
+  if (input.bagId) {
+    const bag = await db.bags.get(input.bagId);
+    if (!bag || bag.tripId !== input.tripId || bag.archivedAt) {
+      throw new Error("The selected bag is not available for this trip.");
+    }
+  }
+
+  return {
+    ...input,
+    name,
+    ownerTravellerId:
+      input.ownershipScope === "traveller" ? input.ownerTravellerId : undefined,
+    category: input.category.trim() || "misc",
+    notes: input.notes?.trim() || undefined,
+  };
 }
 
 export function normaliseOwnership(input: {

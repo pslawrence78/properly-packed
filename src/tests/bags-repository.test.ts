@@ -48,6 +48,7 @@ describe("bags repository", () => {
 
   it("creates, updates and archives bags, unassigning related items", async () => {
     const db = createTestDatabase();
+    await db.travellers.add(travellers[0]);
     const bag = await createBag(
       {
         tripId: "trip:1",

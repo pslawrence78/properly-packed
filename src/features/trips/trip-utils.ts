@@ -1,5 +1,5 @@
 import type { TripInput } from "../../db/repositories/trips-repository";
-import type { TripStatus, TripType } from "../../db/types";
+import type { ContextOption, ContextOptionType, TripStatus, TripType } from "../../db/types";
 
 export const tripTypeOptions: { value: TripType; label: string }[] = [
   { value: "beach-holiday", label: "Beach holiday" },
@@ -42,7 +42,7 @@ export function calculateTripNights(startDate: string, endDate: string) {
   return Math.max(0, Math.round((end - start) / 86_400_000));
 }
 
-export function validateTrip(values: TripFormValues) {
+export function validateTrip(values: TripFormValues, contextOptions: ContextOption[] = []) {
   const errors: string[] = [];
 
   if (!values.name.trim()) {
@@ -62,7 +62,20 @@ export function validateTrip(values: TripFormValues) {
   }
 
   if (values.travellerIds.length === 0) {
-    errors.push("At least one traveller is required.");
+    errors.push("Select at least one traveller for this trip.");
+  }
+
+  if (contextOptions.length > 0) {
+    const expectedTypes = [
+      [values.climateContextIds, "climate"],
+      [values.accommodationContextIds, "accommodation"],
+      [values.transportContextIds, "transport"],
+      [values.activityContextIds, "activity"],
+    ] as [string[], ContextOptionType][];
+    const byId = new Map(contextOptions.map((option) => [option.id, option]));
+    if (expectedTypes.some(([ids, type]) => ids.some((id) => byId.get(id)?.type !== type))) {
+      errors.push("One or more trip context selections are invalid.");
+    }
   }
 
   return errors;

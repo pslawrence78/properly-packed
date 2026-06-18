@@ -2,6 +2,7 @@ import type {
   AppSetting,
   AuditEvent,
   Bag,
+  ContextOption,
   GadgetBundle,
   GadgetBundleItem,
   Outfit,
@@ -18,10 +19,17 @@ import type {
   UsefulExtra,
 } from "../../db/types";
 
-export const EXPORT_SCHEMA_VERSION = "properly-packed-export-v1";
+export const EXPORT_SCHEMA_VERSION = "properly-packed-export-v2";
+export const SUPPORTED_EXPORT_SCHEMA_VERSIONS = [
+  "properly-packed-export-v1",
+  EXPORT_SCHEMA_VERSION,
+] as const;
+export type SupportedExportSchemaVersion =
+  (typeof SUPPORTED_EXPORT_SCHEMA_VERSIONS)[number];
 
 export const exportTableNames = [
   "travellers",
+  "contextOptions",
   "trips",
   "tripItineraryDays",
   "packingItems",
@@ -44,6 +52,7 @@ export type ExportTableName = (typeof exportTableNames)[number];
 
 export type ExportTables = {
   travellers: Traveller[];
+  contextOptions: ContextOption[];
   trips: Trip[];
   tripItineraryDays: TripItineraryDay[];
   packingItems: PackingItem[];
@@ -63,7 +72,7 @@ export type ExportTables = {
 };
 
 export type ProperlyPackedExport = {
-  schemaVersion: typeof EXPORT_SCHEMA_VERSION;
+  schemaVersion: SupportedExportSchemaVersion;
   exportedAt: string;
   appVersion: string;
   databaseVersion: number;

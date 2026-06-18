@@ -1,6 +1,7 @@
 import type { ProperlyPackedDatabase } from "../schema";
 import { appDb } from "../schema";
-import type { PackingItem, Traveller, Trip, UsefulExtra } from "../types";
+import { tripMatchesContext } from "../trip-context-matching";
+import type { ContextOption, PackingItem, Traveller, Trip, UsefulExtra } from "../types";
 import { hasDuplicatePackingItem } from "./templates-repository";
 
 export type UsefulExtraSuggestion = {
@@ -25,12 +26,13 @@ export async function listUsefulExtraSuggestionsForTrip(
   travellers: Traveller[],
   db: ProperlyPackedDatabase = appDb,
 ) {
-  const [extras, existingItems] = await Promise.all([
+  const [extras, existingItems, contextOptions] = await Promise.all([
     listUsefulExtras(db),
     db.packingItems.where("tripId").equals(trip.id).toArray(),
+    db.contextOptions.toArray(),
   ]);
   return extras
-    .filter((extra) => extraAppliesToTrip(extra, trip))
+    .filter((extra) => extraAppliesToTrip(extra, trip, contextOptions))
     .map((extra): UsefulExtraSuggestion => {
       if (extra.neverSuggest && !extra.alwaysSuggest) {
         return { extra, status: "hidden" };
@@ -108,7 +110,11 @@ export async function updateUsefulExtraFlags(
   return db.usefulExtras.get(extraId);
 }
 
-export function extraAppliesToTrip(extra: UsefulExtra, trip: Trip) {
+export function extraAppliesToTrip(
+  extra: UsefulExtra,
+  trip: Trip,
+  contextOptions: ContextOption[] = [],
+) {
   if (extra.alwaysSuggest) {
     return true;
   }
@@ -119,10 +125,7 @@ export function extraAppliesToTrip(extra: UsefulExtra, trip: Trip) {
   const contextMatch =
     extra.applicableContexts.length === 0 ||
     extra.applicableContexts.some((context) =>
-      trip.activityContexts.includes(context) ||
-      trip.accommodationTypes.includes(context) ||
-      trip.transportModes.includes(context) ||
-      trip.climateProfile === context,
+      tripMatchesContext(trip, context, contextOptions),
     );
 
   return tripTypeMatch && contextMatch;

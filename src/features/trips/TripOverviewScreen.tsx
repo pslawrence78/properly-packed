@@ -1,6 +1,8 @@
 import { Map } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { ensureDatabaseReady } from "../../db";
+import { getContextLabelsByIds } from "../../db/context-options";
+import { listContextOptions } from "../../db/repositories/context-options-repository";
 import {
   getActiveTripId,
   setActiveTripId,
@@ -19,17 +21,18 @@ export function TripOverviewScreen() {
   const [refreshKey, setRefreshKey] = useState(0);
   const tripData = useAsyncData(async () => {
     await ensureDatabaseReady();
-    const [trip, travellers, activeTripId] = await Promise.all([
+    const [trip, travellers, activeTripId, contextOptions] = await Promise.all([
       tripId ? getTrip(tripId) : undefined,
       listTravellers(),
       getActiveTripId(),
+      listContextOptions(),
     ]);
 
     if (!trip) {
       throw new Error("Trip not found.");
     }
 
-    return { trip, travellers, activeTripId };
+    return { trip, travellers, activeTripId, contextOptions };
   }, [tripId, refreshKey]);
 
   async function refreshAfter(action: Promise<unknown>) {
@@ -107,21 +110,33 @@ export function TripOverviewScreen() {
               />
               <Detail
                 label="Climate"
-                value={tripData.data.trip.climateProfile || "Not set"}
+                value={formatContexts(
+                  tripData.data.contextOptions,
+                  tripData.data.trip.climateContextIds,
+                )}
               />
               <Detail
                 label="Accommodation"
                 value={
-                  tripData.data.trip.accommodationTypes.join(", ") || "Not set"
+                  formatContexts(
+                    tripData.data.contextOptions,
+                    tripData.data.trip.accommodationContextIds,
+                  )
                 }
               />
               <Detail
                 label="Transport"
-                value={tripData.data.trip.transportModes.join(", ") || "Not set"}
+                value={formatContexts(
+                  tripData.data.contextOptions,
+                  tripData.data.trip.transportContextIds,
+                )}
               />
               <Detail
                 label="Contexts"
-                value={tripData.data.trip.activityContexts.join(", ") || "Not set"}
+                value={formatContexts(
+                  tripData.data.contextOptions,
+                  tripData.data.trip.activityContextIds,
+                )}
               />
             </dl>
           </section>
@@ -180,6 +195,13 @@ export function TripOverviewScreen() {
       ) : null}
     </section>
   );
+}
+
+function formatContexts(
+  options: Parameters<typeof getContextLabelsByIds>[0],
+  ids: string[] | undefined,
+) {
+  return getContextLabelsByIds(options, ids ?? []).join(", ") || "Not set";
 }
 
 function Detail({ label, value }: { label: string; value: string }) {

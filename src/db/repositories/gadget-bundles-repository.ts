@@ -1,5 +1,6 @@
 import type { ProperlyPackedDatabase } from "../schema";
 import { appDb } from "../schema";
+import { tripMatchesContext } from "../trip-context-matching";
 import type {
   GadgetBundle,
   GadgetBundleItem,
@@ -62,14 +63,15 @@ export async function previewGadgetBundlesForTrip(
   travellers: Traveller[],
   db: ProperlyPackedDatabase = appDb,
 ) {
-  const [bundles, bundleItems, existingItems] = await Promise.all([
+  const [bundles, bundleItems, existingItems, contextOptions] = await Promise.all([
     listGadgetBundles(db),
     db.gadgetBundleItems.toArray(),
     db.packingItems.where("tripId").equals(trip.id).toArray(),
+    db.contextOptions.toArray(),
   ]);
 
   return bundles
-    .filter((bundle) => gadgetBundleAppliesToTrip(bundle, trip))
+    .filter((bundle) => gadgetBundleAppliesToTrip(bundle, trip, contextOptions))
     .map((bundle) =>
       buildGadgetBundlePreview(
         bundle,
@@ -224,17 +226,18 @@ export function buildGadgetBundlePreview(
   };
 }
 
-export function gadgetBundleAppliesToTrip(bundle: GadgetBundle, trip: Trip) {
+export function gadgetBundleAppliesToTrip(
+  bundle: GadgetBundle,
+  trip: Trip,
+  contextOptions: import("../types").ContextOption[] = [],
+) {
   const tripTypeMatch =
     bundle.applicableTripTypes.length === 0 ||
     bundle.applicableTripTypes.includes(trip.tripType);
   const contextMatch =
     bundle.applicableContexts.length === 0 ||
     bundle.applicableContexts.some((context) =>
-      trip.activityContexts.includes(context) ||
-      trip.accommodationTypes.includes(context) ||
-      trip.transportModes.includes(context) ||
-      trip.climateProfile === context,
+      tripMatchesContext(trip, context, contextOptions),
     );
 
   return tripTypeMatch && contextMatch;

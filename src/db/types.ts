@@ -4,6 +4,12 @@ export type TravellerType = "adult" | "child" | "dog";
 
 export type ItemOwnershipScope = "traveller" | "shared" | "unassigned";
 
+export type ContextOptionType =
+  | "climate"
+  | "accommodation"
+  | "transport"
+  | "activity";
+
 export type TripStatus =
   | "draft"
   | "planning"
@@ -125,6 +131,10 @@ export type ReviewLearningType =
 export type TemplateConditionRule = {
   field:
     | "tripType"
+    | "climateContextIds"
+    | "activityContextIds"
+    | "transportContextIds"
+    | "accommodationContextIds"
     | "activityContexts"
     | "transportModes"
     | "accommodationTypes"
@@ -158,6 +168,16 @@ export type Traveller = ArchivableEntity & {
   notes?: string;
 };
 
+export type ContextOption = ArchivableEntity & {
+  type: ContextOptionType;
+  label: string;
+  description?: string;
+  icon?: string;
+  colour?: string;
+  active: boolean;
+  sortOrder: number;
+};
+
 export type Trip = ArchivableEntity & {
   name: string;
   tripType: TripType;
@@ -165,10 +185,18 @@ export type Trip = ArchivableEntity & {
   endDate: string;
   nights: number;
   destinations: string[];
+  climateContextIds: string[];
+  accommodationContextIds: string[];
+  transportContextIds: string[];
+  activityContextIds: string[];
+  /** @deprecated Retained only for existing data and older backup compatibility. */
   climateProfile?: string;
-  accommodationTypes: string[];
-  transportModes: string[];
-  activityContexts: string[];
+  /** @deprecated Retained only for existing data and older backup compatibility. */
+  accommodationTypes?: string[];
+  /** @deprecated Retained only for existing data and older backup compatibility. */
+  transportModes?: string[];
+  /** @deprecated Retained only for existing data and older backup compatibility. */
+  activityContexts?: string[];
   travellerIds: string[];
   status: TripStatus;
   notes?: string;

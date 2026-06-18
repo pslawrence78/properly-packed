@@ -2,6 +2,7 @@ import type { ProperlyPackedDatabase } from "./schema";
 import { appDb } from "./schema";
 import {
   createSeedSettings,
+  seededContextOptions,
   seededGadgetBundleItems,
   seededGadgetBundles,
   seededTemplateItems,
@@ -10,7 +11,8 @@ import {
   seededUsefulExtras,
   SEED_VERSION,
 } from "./seed-data";
-import type { AuditEvent, BaseEntity, Traveller } from "./types";
+import { normaliseContextLabel } from "./context-options";
+import type { AuditEvent, BaseEntity, ContextOption, Traveller } from "./types";
 
 export type SeedResult = {
   applied: boolean;
@@ -19,6 +21,7 @@ export type SeedResult = {
   templatesInserted: number;
   usefulExtrasInserted: number;
   gadgetBundlesInserted: number;
+  contextOptionsInserted: number;
 };
 
 export async function applyInitialSeed(
@@ -29,6 +32,7 @@ export async function applyInitialSeed(
     "rw",
     [
       db.travellers,
+      db.contextOptions,
       db.templates,
       db.templateItems,
       db.usefulExtras,
@@ -45,6 +49,7 @@ export async function applyInitialSeed(
       const usefulExtras = withTimestamps(seededUsefulExtras, now);
       const gadgetBundles = withTimestamps(seededGadgetBundles, now);
       const gadgetBundleItems = withTimestamps(seededGadgetBundleItems, now);
+      const contextOptionsInserted = await applyContextOptionSeed(db, now);
 
       const seededTravellerCount = await db.travellers
         .where("seedKey")
@@ -66,6 +71,7 @@ export async function applyInitialSeed(
           templatesInserted: templates.length,
           usefulExtrasInserted: usefulExtras.length,
           gadgetBundlesInserted: gadgetBundles.length,
+          contextOptionsInserted,
         };
       }
 
@@ -84,6 +90,7 @@ export async function applyInitialSeed(
           templatesInserted: templates.length,
           usefulExtrasInserted: usefulExtras.length,
           gadgetBundlesInserted: gadgetBundles.length,
+          contextOptionsInserted,
         };
       }
 
@@ -96,6 +103,7 @@ export async function applyInitialSeed(
         metadata: {
           seedVersion: SEED_VERSION,
           travellersInserted: travellers.length,
+          contextOptionsInserted,
         },
         createdAt: now,
       };
@@ -116,9 +124,48 @@ export async function applyInitialSeed(
         templatesInserted: templates.length,
         usefulExtrasInserted: usefulExtras.length,
         gadgetBundlesInserted: gadgetBundles.length,
+        contextOptionsInserted,
       };
     },
   );
+}
+
+async function applyContextOptionSeed(
+  db: ProperlyPackedDatabase,
+  now: string,
+) {
+  const existing = await db.contextOptions.toArray();
+  let inserted = 0;
+
+  for (const seeded of seededContextOptions) {
+    const bySeedKey = existing.find((option) => option.seedKey === seeded.seedKey);
+    if (bySeedKey) continue;
+
+    const byLabel = existing.find(
+      (option) =>
+        option.type === seeded.type &&
+        normaliseContextLabel(option.label) === normaliseContextLabel(seeded.label),
+    );
+    if (byLabel) {
+      await db.contextOptions.update(byLabel.id, {
+        seedKey: seeded.seedKey,
+        seedVersion: SEED_VERSION,
+      });
+      byLabel.seedKey = seeded.seedKey;
+      continue;
+    }
+
+    const option: ContextOption = {
+      ...seeded,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await db.contextOptions.add(option);
+    existing.push(option);
+    inserted += 1;
+  }
+
+  return inserted;
 }
 
 function withTimestamps<T extends BaseEntity>(entities: T[], now: string): T[] {
