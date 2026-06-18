@@ -3,15 +3,20 @@ import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { PageSection } from "../../components/layout/PageSection";
 import { ensureDatabaseReady } from "../../db";
+import { listContextOptions } from "../../db/repositories/context-options-repository";
 import {
   mergeUniqueContextValues,
   listItineraryDaysForTrip,
   saveItineraryDays,
-  splitClimateProfileValues,
   type TripItineraryDayUpdate,
 } from "../../db/repositories/trip-itinerary-repository";
 import { getTrip } from "../../db/repositories/trips-repository";
-import type { Trip, TripItineraryDay } from "../../db/types";
+import type {
+  ContextOption,
+  ContextOptionType,
+  Trip,
+  TripItineraryDay,
+} from "../../db/types";
 import { useAsyncData } from "../../hooks/use-async-data";
 
 type ContextKey =
@@ -68,7 +73,10 @@ export function ItineraryScreen() {
       throw new Error("Trip not found.");
     }
 
-    const trip = await getTrip(tripId);
+    const [trip, contextOptions] = await Promise.all([
+      getTrip(tripId),
+      listContextOptions(),
+    ]);
 
     if (!trip) {
       throw new Error("Trip not found.");
@@ -76,7 +84,7 @@ export function ItineraryScreen() {
 
     const itineraryDays = await listItineraryDaysForTrip(trip);
 
-    return { itineraryDays, trip };
+    return { contextOptions, itineraryDays, trip };
   }, [tripId]);
 
   return (
@@ -89,6 +97,7 @@ export function ItineraryScreen() {
       ) : null}
       {itineraryData.state === "ready" ? (
         <ItineraryEditor
+          contextOptions={itineraryData.data.contextOptions}
           initialDays={itineraryData.data.itineraryDays}
           key={itineraryData.data.trip.id}
           trip={itineraryData.data.trip}
@@ -99,9 +108,11 @@ export function ItineraryScreen() {
 }
 
 function ItineraryEditor({
+  contextOptions,
   initialDays,
   trip,
 }: {
+  contextOptions: ContextOption[];
   initialDays: TripItineraryDay[];
   trip: Trip;
 }) {
@@ -112,30 +123,34 @@ function ItineraryEditor({
     "idle" | "saving" | "saved" | "error"
   >("idle");
 
-  const contextOptions = useMemo(
+  const availableContextOptions = useMemo(
     () => ({
       destinationContexts: mergeUniqueContextValues(
         trip.destinations,
         days.flatMap((day) => day.destinationContexts),
       ),
-      climateContexts: mergeUniqueContextValues(
-        splitClimateProfileValues(trip.climateProfile),
-        days.flatMap((day) => day.climateContexts),
+      climateContexts: resolveContextLabels(
+        trip.climateContextIds,
+        "climate",
+        contextOptions,
       ),
-      accommodationContexts: mergeUniqueContextValues(
-        trip.accommodationTypes ?? [],
-        days.flatMap((day) => day.accommodationContexts),
+      accommodationContexts: resolveContextLabels(
+        trip.accommodationContextIds,
+        "accommodation",
+        contextOptions,
       ),
-      transportContexts: mergeUniqueContextValues(
-        trip.transportModes ?? [],
-        days.flatMap((day) => day.transportContexts),
+      transportContexts: resolveContextLabels(
+        trip.transportContextIds,
+        "transport",
+        contextOptions,
       ),
-      activityContexts: mergeUniqueContextValues(
-        trip.activityContexts ?? [],
-        days.flatMap((day) => day.activityContexts),
+      activityContexts: resolveContextLabels(
+        trip.activityContextIds,
+        "activity",
+        contextOptions,
       ),
     }),
-    [days, trip],
+    [contextOptions, days, trip],
   );
 
   const summary = useMemo(() => calculateItinerarySummary(days), [days]);
@@ -289,7 +304,7 @@ function ItineraryEditor({
                     >
                       <ContextOptions
                         label={definition.label}
-                        options={contextOptions[definition.key]}
+                        options={availableContextOptions[definition.key]}
                         selectedValues={day[definition.key]}
                         onToggle={(value) =>
                           toggleContext(day.dayNumber, definition.key, value)
@@ -316,7 +331,7 @@ function ItineraryEditor({
         <div className="grid gap-4 xl:hidden">
           {days.map((day) => (
             <DayCard
-              contextOptions={contextOptions}
+              contextOptions={availableContextOptions}
               day={day}
               key={day.dayNumber}
               onCopyPrevious={() => copyPreviousDay(day.dayNumber)}
@@ -532,6 +547,27 @@ function calculateItinerarySummary(days: ItineraryDayState[]) {
     ).length,
     activityDays: days.filter((day) => day.activityContexts.length > 0).length,
   };
+}
+
+export function resolveContextLabels(
+  contextIds: string[] | undefined,
+  expectedType: ContextOptionType,
+  contextOptions: ContextOption[],
+) {
+  if (!Array.isArray(contextIds)) {
+    return [];
+  }
+
+  const optionsById = new Map(
+    contextOptions.map((option) => [option.id, option]),
+  );
+
+  return mergeUniqueContextValues(
+    contextIds.map((id) => {
+      const option = optionsById.get(id);
+      return option?.type === expectedType ? option.label : "Unknown context";
+    }),
+  );
 }
 
 function formatTripDate(date: string) {
