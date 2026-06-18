@@ -303,7 +303,13 @@ export type Template = BaseEntity & {
 export type TemplateItem = BaseEntity & {
   templateId: string;
   name: string;
-  ownerType: TravellerType | "selected-adult" | "selected-child" | "shared" | "unassigned";
+  ownerType:
+    | TravellerType
+    | "each-traveller"
+    | "selected-adult"
+    | "selected-child"
+    | "shared"
+    | "unassigned";
   category: string;
   quantity: number;
   priority: PackingPriority;

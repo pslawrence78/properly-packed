@@ -2,13 +2,21 @@ import { afterEach, describe, expect, it } from "vitest";
 import { ProperlyPackedDatabase } from "../db";
 import {
   applyTemplateToTrip,
+  buildTemplatePreview,
   hasDuplicatePackingItem,
   previewTemplatesForTrip,
   rulesApply,
 } from "../db/repositories/templates-repository";
 import { addUsefulExtraToTrip } from "../db/repositories/useful-extras-repository";
 import { applyInitialSeed } from "../db/seed";
-import type { PackingItem, Traveller, Trip } from "../db/types";
+import type {
+  ContextOption,
+  PackingItem,
+  Template,
+  TemplateItem,
+  Traveller,
+  Trip,
+} from "../db/types";
 
 const testDatabases: ProperlyPackedDatabase[] = [];
 
@@ -45,6 +53,134 @@ describe("templates repository", () => {
         trip,
       ),
     ).toBe(false);
+  });
+
+  it("matches ID-based and legacy template rules through inactive selected contexts", () => {
+    const context: ContextOption = {
+      id: "context:pool",
+      type: "activity",
+      label: "Pool",
+      active: false,
+      sortOrder: 1,
+      createdAt: "2026-06-18T00:00:00.000Z",
+      updatedAt: "2026-06-18T00:00:00.000Z",
+    };
+    const idBasedTrip = tripRow("trip:id-context", ["traveller:adult"], {
+      activityContextIds: [context.id],
+      activityContexts: [],
+    });
+
+    expect(
+      rulesApply(
+        [{ field: "activityContextIds", operator: "includes", value: "pool" }],
+        idBasedTrip,
+        [context],
+      ),
+    ).toBe(true);
+    expect(
+      rulesApply(
+        [{ field: "activityContexts", operator: "includes", value: "pool" }],
+        idBasedTrip,
+        [context],
+      ),
+    ).toBe(true);
+    expect(
+      rulesApply(
+        [{ field: "activityContextIds", operator: "includes", value: context.id }],
+        idBasedTrip,
+        [context],
+      ),
+    ).toBe(true);
+  });
+
+  it("expands neutral traveller targets and surfaces unresolved targets safely", () => {
+    const template = templateRow();
+    const travellers = [
+      traveller("traveller:adult", "Adult traveller", "adult"),
+      traveller("traveller:child", "Child traveller", "child"),
+      traveller("traveller:pet", "Pet traveller", "dog"),
+    ];
+    const trip = tripRow("trip:targets", travellers.map((row) => row.id), {
+      tripType: "city-break",
+      activityContexts: [],
+      accommodationTypes: [],
+      transportModes: [],
+    });
+    const preview = buildTemplatePreview(
+      template,
+      [
+        templateItem("each", "Medication pouch", "each-traveller"),
+        templateItem("adult", "Travel documents", "selected-adult"),
+        templateItem("child", "Child headphones", "selected-child"),
+        templateItem("pet", "Pet blanket", "dog"),
+        templateItem("shared", "Power bank", "shared"),
+        templateItem("decision", "Optional jacket", "unassigned", ["decide"]),
+      ],
+      trip,
+      travellers,
+      [],
+    );
+
+    expect(
+      preview.suggestions.filter((row) => row.templateItem.id === "item:each"),
+    ).toHaveLength(3);
+    expect(
+      preview.suggestions.find((row) => row.templateItem.id === "item:shared"),
+    ).toMatchObject({ ownershipScope: "shared", ownerTraveller: undefined });
+    expect(
+      preview.suggestions.find((row) => row.templateItem.id === "item:decision"),
+    ).toMatchObject({ ownershipScope: "unassigned", packingStatus: "to-decide" });
+    expect(
+      preview.suggestions.find((row) => row.templateItem.id === "item:child")
+        ?.ownerTraveller?.travellerType,
+    ).toBe("child");
+    expect(
+      preview.suggestions.find((row) => row.templateItem.id === "item:pet")
+        ?.ownerTraveller?.travellerType,
+    ).toBe("dog");
+
+    const unresolved = buildTemplatePreview(
+      template,
+      [templateItem("missing-child", "Child sun hat", "selected-child")],
+      { ...trip, travellerIds: ["traveller:adult"] },
+      travellers,
+      [],
+    );
+    expect(unresolved.suggestions[0]).toMatchObject({
+      ownershipScope: "unassigned",
+      status: "skipped",
+    });
+    expect(unresolved.suggestions[0].reason).toContain("no matching child traveller");
+  });
+
+  it("uses category-aware duplicate keys and exposes skipped duplicates", () => {
+    const template = templateRow();
+    const trip = tripRow("trip:duplicates", [], {
+      tripType: "city-break",
+      activityContexts: [],
+      accommodationTypes: [],
+      transportModes: [],
+    });
+    const manual = {
+      ...packingItem("manual:1", "Travel documents", "shared"),
+      tripId: trip.id,
+      category: "documents",
+    };
+    const preview = buildTemplatePreview(
+      template,
+      [
+        templateItem("documents", "Travel documents", "shared", [], "documents"),
+        templateItem("misc", "Travel documents", "shared", [], "misc"),
+      ],
+      trip,
+      [],
+      [manual],
+    );
+
+    expect(preview.duplicateCount).toBe(1);
+    expect(preview.newCount).toBe(1);
+    expect(preview.suggestions[0].reason).toContain("already exists");
+    expect(manual.source).toBe("manual");
   });
 
   it("detects duplicate suggestions by owner and normalised name", () => {
@@ -101,6 +237,43 @@ describe("templates repository", () => {
     expect(secondResult.skippedDuplicates).toBe(insertedItems.length);
   });
 
+  it("applies each-traveller and unassigned decision items with clean metadata", async () => {
+    const db = createTestDatabase();
+    const travellers = [
+      traveller("traveller:adult", "Adult traveller", "adult"),
+      traveller("traveller:child", "Child traveller", "child"),
+    ];
+    const trip = tripRow("trip:neutral-apply", travellers.map((row) => row.id), {
+      tripType: "city-break",
+      activityContexts: [],
+      accommodationTypes: [],
+      transportModes: [],
+    });
+    const template = templateRow();
+    await db.travellers.bulkAdd(travellers);
+    await db.trips.add(trip);
+    await db.templates.add(template);
+    await db.templateItems.bulkAdd([
+      templateItem("each-apply", "Medication pouch", "each-traveller"),
+      templateItem("decision-apply", "Optional jacket", "unassigned", ["decide"]),
+    ]);
+
+    const result = await applyTemplateToTrip(template.id, trip, travellers, db);
+    const generated = await db.packingItems.where("tripId").equals(trip.id).toArray();
+
+    expect(result.inserted).toBe(3);
+    expect(generated.filter((item) => item.name === "Medication pouch")).toHaveLength(2);
+    const decisionItem = generated.find((item) => item.name === "Optional jacket");
+    expect(decisionItem).toMatchObject({
+      ownershipScope: "unassigned",
+      ownerTravellerId: undefined,
+      status: "to-decide",
+      source: "template",
+      sourceId: "item:decision-apply",
+    });
+    expect(decisionItem).not.toHaveProperty("bagId");
+  });
+
   it("adds useful extras to a trip with source tracking", async () => {
     const db = createTestDatabase();
     await applyInitialSeed(db, () => "2026-06-16T00:00:00.000Z");
@@ -130,6 +303,41 @@ describe("templates repository", () => {
     ]);
   });
 });
+
+function templateRow(): Template {
+  return {
+    id: "template:test",
+    name: "Travel template",
+    applicableTripTypes: ["city-break"],
+    applicableTravellers: ["adult", "child", "dog"],
+    applicableContexts: [],
+    active: true,
+    createdAt: "2026-06-18T00:00:00.000Z",
+    updatedAt: "2026-06-18T00:00:00.000Z",
+  };
+}
+
+function templateItem(
+  id: string,
+  name: string,
+  ownerType: TemplateItem["ownerType"],
+  flags: string[] = [],
+  category = "misc",
+): TemplateItem {
+  return {
+    id: `item:${id}`,
+    templateId: "template:test",
+    name,
+    ownerType,
+    category,
+    quantity: 1,
+    priority: "important",
+    flags,
+    conditionRules: [],
+    createdAt: "2026-06-18T00:00:00.000Z",
+    updatedAt: "2026-06-18T00:00:00.000Z",
+  };
+}
 
 function tripRow(
   id: string,

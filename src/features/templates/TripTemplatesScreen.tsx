@@ -9,6 +9,7 @@ import {
 import {
   applyTemplateToTrip,
   previewTemplatesForTrip,
+  type ApplyTemplateResult,
   type TemplatePreview,
 } from "../../db/repositories/templates-repository";
 import { getTrip } from "../../db/repositories/trips-repository";
@@ -21,6 +22,9 @@ export function TripTemplatesScreen() {
   const { tripId } = useParams();
   const [refreshKey, setRefreshKey] = useState(0);
   const [message, setMessage] = useState("");
+  const [applyResult, setApplyResult] = useState<
+    { templateName: string; result: ApplyTemplateResult } | undefined
+  >();
   const data = useAsyncData(async () => {
     await ensureDatabaseReady();
 
@@ -46,6 +50,20 @@ export function TripTemplatesScreen() {
     setMessage("");
     await action;
     setMessage(success);
+    setRefreshKey((key) => key + 1);
+  }
+
+  async function applyPreview(preview: TemplatePreview) {
+    if (data.state !== "ready") {
+      throw new Error("Trip not found.");
+    }
+    setMessage("");
+    const result = await applyTemplateToTrip(
+      preview.template.id,
+      data.data.trip,
+      data.data.travellers,
+    );
+    setApplyResult({ templateName: preview.template.name, result });
     setRefreshKey((key) => key + 1);
   }
 
@@ -89,6 +107,28 @@ export function TripTemplatesScreen() {
             </div>
           ) : null}
 
+          {applyResult ? (
+            <section
+              aria-live="polite"
+              className="rounded-lg border border-teal/30 bg-teal/10 p-4 text-sm text-charcoal/78"
+            >
+              <p className="font-semibold text-charcoal">
+                {applyResult.templateName} template applied
+              </p>
+              <p className="mt-1 leading-6">
+                {applyResult.result.inserted} added, {applyResult.result.skippedDuplicates}{" "}
+                skipped as duplicates, and {applyResult.result.skippedUnmatched} unresolved or
+                context-mismatched.
+              </p>
+              <Link
+                className="trip-action mt-3 min-h-11 justify-center"
+                to={`/trips/${data.data.trip.id}/pack`}
+              >
+                Open packing list
+              </Link>
+            </section>
+          ) : null}
+
           <PageSection title="Template preview">
             {data.data.templatePreviews.length === 0 ? (
               <p className="text-sm text-charcoal/65">
@@ -100,16 +140,7 @@ export function TripTemplatesScreen() {
                   <TemplatePreviewCard
                     key={preview.template.id}
                     preview={preview}
-                    onApply={() =>
-                      refreshAfter(
-                        applyTemplateToTrip(
-                          preview.template.id,
-                          data.data.trip,
-                          data.data.travellers,
-                        ),
-                        `${preview.template.name} applied.`,
-                      )
-                    }
+                    onApply={() => applyPreview(preview)}
                   />
                 ))}
               </div>
@@ -152,9 +183,34 @@ export function TemplatePreviewCard({
   onApply,
   preview,
 }: {
-  onApply: () => void;
+  onApply: () => Promise<void> | void;
   preview: TemplatePreview;
 }) {
+  const [applying, setApplying] = useState(false);
+  const [error, setError] = useState<string>();
+
+  async function confirmAndApply() {
+    if (
+      !window.confirm(
+        `Apply ${preview.newCount} new ${preview.newCount === 1 ? "item" : "items"} from “${preview.template.name}”? Existing packing items will not be changed.`,
+      )
+    ) {
+      return;
+    }
+
+    setError(undefined);
+    setApplying(true);
+    try {
+      await onApply();
+    } catch (applyError) {
+      setError(
+        applyError instanceof Error ? applyError.message : "Could not apply template.",
+      );
+    } finally {
+      setApplying(false);
+    }
+  }
+
   return (
     <article className="rounded-lg border border-charcoal/10 bg-cream p-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -166,32 +222,63 @@ export function TemplatePreviewCard({
             {preview.newCount} new, {preview.duplicateCount} duplicates,{" "}
             {preview.skippedCount} skipped.
           </p>
+          {preview.template.description ? (
+            <p className="mt-2 text-sm leading-6 text-charcoal/65">
+              {preview.template.description}
+            </p>
+          ) : null}
         </div>
         <button
           className="min-h-11 rounded-lg bg-slateAccent px-4 py-3 text-sm font-semibold text-cream shadow-soft disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={preview.newCount === 0}
-          onClick={onApply}
+          disabled={preview.newCount === 0 || applying}
+          onClick={() => void confirmAndApply()}
           type="button"
         >
-          Apply template
+          {applying ? "Applying..." : `Apply ${preview.newCount} new ${preview.newCount === 1 ? "item" : "items"}`}
         </button>
       </div>
+      {error ? (
+        <p className="mt-3 rounded-lg border border-clay/30 bg-clay/10 px-3 py-2 text-sm" role="alert">
+          {error}
+        </p>
+      ) : null}
       <ul className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {preview.suggestions.map((suggestion) => (
           <li
-            className="rounded-lg bg-paper px-3 py-2 text-sm text-charcoal"
-            key={suggestion.templateItem.id}
+            className={`rounded-lg border px-4 py-3 text-sm text-charcoal ${
+              suggestion.status === "new"
+                ? "border-teal/20 bg-paper"
+                : "border-charcoal/10 bg-charcoal/5"
+            }`}
+            key={suggestion.key}
           >
-            <span className="font-semibold">{suggestion.templateItem.name}</span>
-            <span className="block text-charcoal/65">
-              {formatTemplateOwnership(suggestion)} -{" "}
-              {suggestion.status}
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <span className="font-semibold">{suggestion.templateItem.name}</span>
+              <span className="rounded-full bg-cream px-2 py-1 text-xs font-semibold capitalize text-charcoal/70">
+                {suggestion.status}
+              </span>
+            </div>
+            <span className="mt-2 block text-charcoal/70">
+              {formatTemplateOwnership(suggestion)} · {formatLabel(suggestion.templateItem.category)}
+            </span>
+            <span className="mt-1 block text-charcoal/65">
+              {formatLabel(suggestion.templateItem.priority)} · {formatLabel(suggestion.packingStatus)}
+            </span>
+            <span className="mt-2 block text-xs font-medium text-charcoal/60">
+              Source: {preview.template.name} template
+            </span>
+            <span className="mt-1 block text-sm leading-5 text-charcoal/68">
+              {suggestion.reason}
             </span>
           </li>
         ))}
       </ul>
     </article>
   );
+}
+
+function formatLabel(value: string) {
+  return value.replace(/-/g, " ");
 }
 
 function formatTemplateOwnership(

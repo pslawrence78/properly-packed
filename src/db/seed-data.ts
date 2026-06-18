@@ -143,10 +143,10 @@ export const seededTemplateItems: TemplateItem[] = [
   templateItem("cruise:lanyards", "cruise", "Cruise card lanyards", "shared", "cruise-extras", "useful"),
   templateItem("cruise:magnetic-hooks", "cruise", "Magnetic cabin hooks", "shared", "cruise-extras", "useful"),
   templateItem("cruise:formal-outfit", "cruise", "Formal night outfit", "selected-adult", "clothing", "important", [
-    includesRule("activityContexts", "formal-night"),
+    includesRule("activityContextIds", "formal-night"),
   ]),
   templateItem("cruise:swimwear", "cruise", "Swimwear", "selected-adult", "clothing", "important", [
-    includesRule("activityContexts", "pool"),
+    includesRule("activityContextIds", "pool"),
   ]),
   templateItem("fly-cruise:flight-docs", "fly-cruise", "Flight booking references", "shared", "documents", "essential"),
   templateItem("fly-cruise:plane-comfort", "fly-cruise", "Plane comfort pouch", "shared", "comfort", "useful"),
