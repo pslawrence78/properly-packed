@@ -46,7 +46,9 @@ describe("Properly Packed app shell", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: "Settings" }),
     ).toBeInTheDocument();
-    expect(APP_VERSION).toBe("0.19.0");
+    expect(APP_VERSION).toBe("0.20.0");
     expect(screen.getAllByText(`v${APP_VERSION}`).length).toBeGreaterThan(0);
+    expect(screen.getByText("Export schema")).toBeInTheDocument();
+    expect(screen.getAllByText("v2").length).toBeGreaterThan(0);
   });
 });

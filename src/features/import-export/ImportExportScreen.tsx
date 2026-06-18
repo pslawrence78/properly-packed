@@ -8,9 +8,16 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ensureDatabaseReady, resetDatabaseReadyCache } from "../../db";
-import { PageSection } from "../../components/layout/PageSection";
 import {
+  DATABASE_VERSION,
+  ensureDatabaseReady,
+  resetDatabaseReadyCache,
+} from "../../db";
+import { PageSection } from "../../components/layout/PageSection";
+import { useAsyncData } from "../../hooks/use-async-data";
+import { APP_VERSION } from "../../lib/app-version";
+import {
+  EXPORT_SCHEMA_VERSION,
   exportTableNames,
   type ExportTableName,
   type ImportPreview,
@@ -20,7 +27,9 @@ import {
   createExportFilename,
   createImportPreview,
   generateExportData,
+  getDataSafetySummary,
   parseImportJson,
+  recordSuccessfulExport,
   replaceDataFromExport,
   resetLocalData,
   stringifyExport,
@@ -60,9 +69,14 @@ export function ImportExportScreen() {
   const [resetting, setResetting] = useState(false);
   const [pendingImport, setPendingImport] = useState<PendingImport>();
   const [pasteValue, setPasteValue] = useState("");
-  const [replaceConfirmed, setReplaceConfirmed] = useState(false);
+  const [replaceConfirmation, setReplaceConfirmation] = useState("");
+  const [summaryRefreshKey, setSummaryRefreshKey] = useState(0);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const dataSafety = useAsyncData(async () => {
+    await ensureDatabaseReady();
+    return getDataSafetySummary();
+  }, [summaryRefreshKey]);
 
   async function handleExport() {
     setExporting(true);
@@ -82,7 +96,11 @@ export function ImportExportScreen() {
       link.download = createExportFilename(exportData.exportedAt);
       link.click();
       URL.revokeObjectURL(url);
-      setSuccessMessage("Backup export prepared.");
+      await recordSuccessfulExport(exportData.exportedAt);
+      setSummaryRefreshKey((key) => key + 1);
+      setSuccessMessage(
+        `Backup export prepared successfully at ${formatDateTime(exportData.exportedAt)}.`,
+      );
     } catch (error) {
       setErrorMessage(readErrorMessage(error));
     } finally {
@@ -92,6 +110,12 @@ export function ImportExportScreen() {
 
   async function handleFileSelected(file?: File) {
     if (!file) {
+      return;
+    }
+
+    if (!file.name.toLocaleLowerCase().endsWith(".json")) {
+      setPendingImport(undefined);
+      setErrorMessage("Choose a Properly Packed JSON backup with a .json file extension.");
       return;
     }
 
@@ -105,7 +129,7 @@ export function ImportExportScreen() {
     setErrorMessage("");
     setSuccessMessage("");
     setPendingImport(undefined);
-    setReplaceConfirmed(false);
+    setReplaceConfirmation("");
 
     try {
       if (!text.trim()) {
@@ -124,7 +148,7 @@ export function ImportExportScreen() {
   }
 
   async function handleReplaceImport() {
-    if (!pendingImport || !replaceConfirmed) {
+    if (!pendingImport || replaceConfirmation !== "REPLACE MY DATA") {
       return;
     }
 
@@ -137,7 +161,7 @@ export function ImportExportScreen() {
       resetDatabaseReadyCache();
       setPendingImport(undefined);
       setPasteValue("");
-      setReplaceConfirmed(false);
+      setReplaceConfirmation("");
       setSuccessMessage("Backup imported. Refreshing the app will show the restored data.");
     } catch (error) {
       setErrorMessage(readErrorMessage(error));
@@ -172,7 +196,7 @@ export function ImportExportScreen() {
       resetDatabaseReadyCache();
       setPendingImport(undefined);
       setPasteValue("");
-      setReplaceConfirmed(false);
+      setReplaceConfirmation("");
       setSuccessMessage("Local data reset. Foundation data has been restored.");
     } catch (error) {
       setErrorMessage(readErrorMessage(error));
@@ -220,12 +244,52 @@ export function ImportExportScreen() {
       {successMessage ? <StatusMessage kind="success" message={successMessage} /> : null}
       {errorMessage ? <StatusMessage kind="error" message={errorMessage} /> : null}
 
+      <PageSection title="Backup confidence">
+        <div className="space-y-4">
+          <dl className="grid gap-3 sm:grid-cols-3">
+            <VersionMetric label="App version" value={`v${APP_VERSION}`} />
+            <VersionMetric label="Database version" value={`v${DATABASE_VERSION}`} />
+            <VersionMetric
+              label="Export schema"
+              value={formatSchemaVersion(EXPORT_SCHEMA_VERSION)}
+            />
+          </dl>
+          {dataSafety.state === "ready" ? (
+            <>
+              <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+                <VersionMetric label="Travellers" value={dataSafety.data.travellers} />
+                <VersionMetric label="Trips" value={dataSafety.data.trips} />
+                <VersionMetric label="Packing items" value={dataSafety.data.packingItems} />
+                <VersionMetric label="Bags" value={dataSafety.data.bags} />
+                <VersionMetric label="Templates" value={dataSafety.data.templates} />
+                <VersionMetric label="Trip contexts" value={dataSafety.data.contextOptions} />
+              </dl>
+              <p className="text-sm leading-6 text-charcoal/70">
+                Last successful export: {dataSafety.data.lastExportedAt
+                  ? formatDateTime(dataSafety.data.lastExportedAt)
+                  : "No export recorded on this device yet"}. Export before major imports or resets.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-charcoal/65">Loading local data summary...</p>
+          )}
+        </div>
+      </PageSection>
+
       <PageSection title="Export backup">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="max-w-2xl text-sm leading-6 text-charcoal/72">
-            Export every local table using the properly-packed-export-v2 schema.
-            The JSON includes a schema version and export timestamp.
-          </p>
+        <div className="space-y-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="max-w-3xl space-y-2 text-sm leading-6 text-charcoal/72">
+              <p>
+                Export a complete local backup using {EXPORT_SCHEMA_VERSION}. It includes
+                travellers, trips, dates, destinations, contexts, packing items, bags,
+                templates, outfits, gadgets, reviews, notes and app settings.
+              </p>
+              <p className="font-medium text-charcoal/80">
+                Your backup may contain private trip, traveller and packing information.
+                Store it somewhere safe.
+              </p>
+            </div>
           <button
             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-slateAccent px-4 py-3 text-sm font-semibold text-cream shadow-soft disabled:cursor-not-allowed disabled:opacity-60"
             disabled={exporting}
@@ -235,6 +299,17 @@ export function ImportExportScreen() {
             <Download aria-hidden="true" className="h-4 w-4" />
             {exporting ? "Preparing..." : "Export JSON"}
           </button>
+          </div>
+          <details className="rounded-lg border border-charcoal/10 bg-cream p-4 text-sm">
+            <summary className="cursor-pointer font-semibold text-charcoal">
+              See all data included
+            </summary>
+            <ul className="mt-3 grid gap-2 text-charcoal/70 sm:grid-cols-2 xl:grid-cols-3">
+              {exportTableNames.map((tableName) => (
+                <li key={tableName}>{tableLabels[tableName]}</li>
+              ))}
+            </ul>
+          </details>
         </div>
       </PageSection>
 
@@ -267,10 +342,14 @@ export function ImportExportScreen() {
             </div>
 
             <div className="rounded-lg border border-charcoal/10 bg-cream p-4">
-              <label className="block text-base font-semibold text-charcoal">
+              <label
+                className="block text-base font-semibold text-charcoal"
+                htmlFor="import-json"
+              >
                 Paste JSON
               </label>
               <textarea
+                id="import-json"
                 className="mt-3 min-h-36 w-full rounded-lg border border-charcoal/15 bg-paper p-3 text-sm leading-6 text-charcoal outline-none focus:border-teal"
                 onChange={(event) => setPasteValue(event.target.value)}
                 placeholder="{"
@@ -291,8 +370,8 @@ export function ImportExportScreen() {
             <ImportPreviewPanel
               importing={importing}
               pendingImport={pendingImport}
-              replaceConfirmed={replaceConfirmed}
-              onConfirmChange={setReplaceConfirmed}
+              replaceConfirmation={replaceConfirmation}
+              onConfirmChange={setReplaceConfirmation}
               onReplace={handleReplaceImport}
             />
           ) : (
@@ -335,13 +414,13 @@ function ImportPreviewPanel({
   onConfirmChange,
   onReplace,
   pendingImport,
-  replaceConfirmed,
+  replaceConfirmation,
 }: {
   importing: boolean;
-  onConfirmChange: (value: boolean) => void;
+  onConfirmChange: (value: string) => void;
   onReplace: () => void;
   pendingImport: PendingImport;
-  replaceConfirmed: boolean;
+  replaceConfirmation: string;
 }) {
   const totalRows = exportTableNames.reduce(
     (total, tableName) => total + pendingImport.preview.counts[tableName],
@@ -362,6 +441,13 @@ function ImportPreviewPanel({
             App version {pendingImport.preview.appVersion}, {totalRows} total
             rows.
           </p>
+          <p className="mt-2 inline-flex rounded-full bg-tealSoft px-3 py-1 text-xs font-semibold text-tealDeep">
+            Supported · {pendingImport.preview.compatibilityMessage}
+          </p>
+          <p className="mt-2 text-sm text-charcoal/70">
+            Backup database version {pendingImport.preview.databaseVersion}. Importing will
+            replace all current local data only after the confirmation below.
+          </p>
         </div>
       </div>
 
@@ -379,21 +465,22 @@ function ImportPreviewPanel({
       </dl>
 
       <div className="mt-5 rounded-lg border border-clay/30 bg-clay/10 p-4">
-        <label className="flex gap-3 text-sm font-medium leading-6 text-charcoal">
-          <input
-            checked={replaceConfirmed}
-            className="mt-1 h-4 w-4 accent-teal"
-            onChange={(event) => onConfirmChange(event.target.checked)}
-            type="checkbox"
-          />
+        <label className="block text-sm font-medium leading-6 text-charcoal">
           <span>
-            I understand this will replace all local Properly Packed data on
-            this device.
+            This will permanently replace all current Properly Packed data on this
+            device. Export first if you may need it. Type <strong>REPLACE MY DATA</strong>{" "}
+            to continue.
           </span>
+          <input
+            autoComplete="off"
+            className="mt-3 min-h-12 w-full max-w-md rounded-lg border border-charcoal/20 bg-paper px-3 text-base outline-none focus:border-clay"
+            onChange={(event) => onConfirmChange(event.target.value)}
+            value={replaceConfirmation}
+          />
         </label>
         <button
           className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-clay px-4 py-3 text-sm font-semibold text-cream shadow-soft disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={!replaceConfirmed || importing}
+          disabled={replaceConfirmation !== "REPLACE MY DATA" || importing}
           onClick={onReplace}
           type="button"
         >
@@ -403,6 +490,26 @@ function ImportPreviewPanel({
       </div>
     </section>
   );
+}
+
+function VersionMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | string;
+}) {
+  return (
+    <div className="rounded-lg bg-cream p-4">
+      <dt className="text-sm font-medium text-charcoal/64">{label}</dt>
+      <dd className="mt-1 text-xl font-semibold text-charcoal">{value}</dd>
+    </div>
+  );
+}
+
+function formatSchemaVersion(value: string) {
+  const match = /-v(\d+)$/.exec(value);
+  return match ? `v${match[1]}` : value;
 }
 
 function StatusMessage({ kind, message }: { kind: "error" | "success"; message: string }) {

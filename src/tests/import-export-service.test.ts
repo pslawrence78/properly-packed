@@ -6,8 +6,10 @@ import { APP_VERSION } from "../lib/app-version";
 import {
   EXPORT_SCHEMA_VERSION,
   generateExportData,
+  getDataSafetySummary,
   parseImportJson,
   replaceDataFromExport,
+  recordSuccessfulExport,
   resetLocalData,
   stringifyExport,
   validateImportData,
@@ -33,7 +35,7 @@ afterEach(async () => {
 describe("import and export service", () => {
   it("generates a versioned JSON export with every table", async () => {
     const db = createTestDatabase();
-    await db.travellers.add(traveller("traveller:phil", "Phil"));
+    await db.travellers.add(traveller("traveller:adult", "Adult traveller"));
     await db.trips.add(trip("trip:1", "Summer cruise"));
 
     const exportData = await generateExportData(
@@ -46,7 +48,7 @@ describe("import and export service", () => {
     expect(exportData).toMatchObject({
       schemaVersion: EXPORT_SCHEMA_VERSION,
       exportedAt: "2026-06-16T12:00:00.000Z",
-      appVersion: "0.19.0",
+      appVersion: "0.20.0",
       databaseVersion: 4,
     });
     expect(exportData.appVersion).toBe(APP_VERSION);
@@ -76,11 +78,27 @@ describe("import and export service", () => {
 
   it("rejects corrupt JSON and unsupported schema versions", () => {
     expect(() => parseImportJson("{")).toThrow("Import file is not valid JSON.");
+    expect(() => validateImportData({ hello: "world" })).toThrow(
+      "not a Properly Packed export",
+    );
     expect(() =>
       validateImportData({
         schemaVersion: "properly-packed-export-v99",
+        tables: {},
       }),
-    ).toThrow("Unsupported export schema version.");
+    ).toThrow("newer export schema than this app supports");
+  });
+
+  it("rejects duplicate IDs before replacing data", async () => {
+    const validExport = await generateExportData(createTestDatabase());
+    const duplicate = traveller("traveller:duplicate", "Adult traveller");
+    const invalid = {
+      ...validExport,
+      tables: { ...validExport.tables, travellers: [duplicate, duplicate] },
+    };
+    expect(() => validateImportData(invalid)).toThrow(
+      "Table travellers contains duplicate id traveller:duplicate",
+    );
   });
 
   it("rejects invalid table payloads before replacing data", async () => {
@@ -142,6 +160,95 @@ describe("import and export service", () => {
     expect(await targetDb.contextOptions.toArray()).toMatchObject([
       { id: "context:pool", label: "Pool" },
     ]);
+  });
+
+  it("round trips ownership, bags and generated source metadata", async () => {
+    const sourceDb = createTestDatabase();
+    const targetDb = createTestDatabase();
+    const now = "2026-06-18T00:00:00.000Z";
+    await sourceDb.travellers.add(traveller("traveller:adult", "Adult traveller"));
+    await sourceDb.trips.add({
+      ...trip("trip:safe", "Safe backup"),
+      travellerIds: ["traveller:adult"],
+    });
+    await sourceDb.bags.add({
+      id: "bag:main",
+      tripId: "trip:safe",
+      name: "Main suitcase",
+      bagType: "suitcase",
+      isHandLuggage: false,
+      isTravelDay: false,
+      isCruiseEmbarkation: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await sourceDb.packingItems.bulkAdd([
+      {
+        id: "item:shared",
+        tripId: "trip:safe",
+        name: "Travel documents",
+        ownershipScope: "shared",
+        category: "documents",
+        quantity: 1,
+        priority: "essential",
+        status: "needed",
+        bagId: "bag:main",
+        flags: [],
+        dependencyItemIds: [],
+        source: "template",
+        sourceId: "template-item:documents",
+        forgottenRisk: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: "item:unassigned",
+        tripId: "trip:safe",
+        name: "Optional jacket",
+        ownershipScope: "unassigned",
+        category: "clothing",
+        quantity: 1,
+        priority: "useful",
+        status: "to-decide",
+        flags: [],
+        dependencyItemIds: [],
+        source: "manual",
+        forgottenRisk: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+
+    await replaceDataFromExport(await generateExportData(sourceDb), targetDb);
+    expect(await targetDb.bags.get("bag:main")).toMatchObject({ name: "Main suitcase" });
+    expect(await targetDb.packingItems.get("item:shared")).toMatchObject({
+      ownershipScope: "shared",
+      bagId: "bag:main",
+      source: "template",
+      sourceId: "template-item:documents",
+    });
+    expect(await targetDb.packingItems.get("item:unassigned")).toMatchObject({
+      ownershipScope: "unassigned",
+    });
+    expect(await targetDb.packingItems.get("item:unassigned")).not.toHaveProperty("bagId");
+  });
+
+  it("reports data safety counts and persists the last successful export", async () => {
+    const db = createTestDatabase();
+    await db.travellers.add(traveller("traveller:adult", "Adult traveller"));
+    await db.trips.add({
+      ...trip("trip:summary", "Summary trip"),
+      travellerIds: ["traveller:adult"],
+    });
+    await recordSuccessfulExport("2026-06-18T12:00:00.000Z", db);
+
+    await expect(getDataSafetySummary(db)).resolves.toMatchObject({
+      travellers: 1,
+      trips: 1,
+      packingItems: 0,
+      bags: 0,
+      lastExportedAt: "2026-06-18T12:00:00.000Z",
+    });
   });
 
   it("rejects malformed context options and orphan trip context IDs", async () => {
@@ -322,7 +429,7 @@ function trip(id: string, name: string): Trip {
     accommodationTypes: ["ship"],
     transportModes: ["ship"],
     activityContexts: ["formal-night"],
-    travellerIds: ["traveller:phil"],
+    travellerIds: ["traveller:adult"],
     status: "planning",
     createdAt: "2026-06-16T00:00:00.000Z",
     updatedAt: "2026-06-16T00:00:00.000Z",

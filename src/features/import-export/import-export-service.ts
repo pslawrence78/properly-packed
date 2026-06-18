@@ -24,6 +24,16 @@ export class ImportValidationError extends Error {
   }
 }
 
+export type DataSafetySummary = {
+  travellers: number;
+  trips: number;
+  packingItems: number;
+  bags: number;
+  templates: number;
+  contextOptions: number;
+  lastExportedAt?: string;
+};
+
 export async function generateExportData(
   db: ProperlyPackedDatabase = appDb,
   nowFactory: () => string = () => new Date().toISOString(),
@@ -61,7 +71,11 @@ export function parseImportJson(json: string) {
 
 export function validateImportData(value: unknown): ProperlyPackedExport {
   if (!isRecord(value)) {
-    throw new ImportValidationError("Import file must contain an object.");
+    throw new ImportValidationError("This file is not a Properly Packed export.");
+  }
+
+  if (typeof value.schemaVersion !== "string" || !("tables" in value)) {
+    throw new ImportValidationError("This file is not a Properly Packed export.");
   }
 
   if (
@@ -69,7 +83,15 @@ export function validateImportData(value: unknown): ProperlyPackedExport {
       value.schemaVersion as (typeof SUPPORTED_EXPORT_SCHEMA_VERSIONS)[number],
     )
   ) {
-    throw new ImportValidationError("Unsupported export schema version.");
+    const match = /^properly-packed-export-v(\d+)$/.exec(value.schemaVersion);
+    if (match && Number(match[1]) > 2) {
+      throw new ImportValidationError(
+        "This backup uses a newer export schema than this app supports.",
+      );
+    }
+    throw new ImportValidationError(
+      "This file uses an unsupported Properly Packed export schema.",
+    );
   }
 
   if (typeof value.exportedAt !== "string") {
@@ -104,12 +126,30 @@ export function validateImportData(value: unknown): ProperlyPackedExport {
     if (!Array.isArray(tableValue)) {
       throw new ImportValidationError(`Table ${tableName} must be an array.`);
     }
+
+    validateUniqueKeys(tableName, tableValue);
   }
 
   normaliseImportedOwnership(tables);
   normaliseImportedContexts(tables);
 
   return value as ProperlyPackedExport;
+}
+
+function validateUniqueKeys(tableName: ExportTableName, rows: unknown[]) {
+  const keyField = tableName === "appSettings" ? "key" : "id";
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (!isRecord(row)) continue;
+    const key = row[keyField];
+    if (typeof key !== "string" || !key) continue;
+    if (seen.has(key)) {
+      throw new ImportValidationError(
+        `Table ${tableName} contains duplicate ${keyField} ${key}.`,
+      );
+    }
+    seen.add(key);
+  }
 }
 
 function normaliseImportedContexts(tables: Record<string, unknown>) {
@@ -252,8 +292,52 @@ export function createImportPreview(data: ProperlyPackedExport): ImportPreview {
     schemaVersion: data.schemaVersion,
     exportedAt: data.exportedAt,
     appVersion: data.appVersion,
+    databaseVersion: data.databaseVersion,
+    supported: true,
+    compatibilityMessage:
+      data.schemaVersion === "properly-packed-export-v1"
+        ? "Supported legacy v1 backup. It will be upgraded during import."
+        : "Supported current v2 backup.",
     counts,
   };
+}
+
+export async function getDataSafetySummary(
+  db: ProperlyPackedDatabase = appDb,
+): Promise<DataSafetySummary> {
+  const [travellers, trips, packingItems, bags, templates, contextOptions, lastExport] =
+    await Promise.all([
+      db.travellers.count(),
+      db.trips.count(),
+      db.packingItems.count(),
+      db.bags.count(),
+      db.templates.count(),
+      db.contextOptions.count(),
+      db.appSettings.get("lastExportedAt"),
+    ]);
+  return {
+    travellers,
+    trips,
+    packingItems,
+    bags,
+    templates,
+    contextOptions,
+    lastExportedAt:
+      typeof lastExport?.value === "string" ? lastExport.value : undefined,
+  };
+}
+
+export async function recordSuccessfulExport(
+  exportedAt: string,
+  db: ProperlyPackedDatabase = appDb,
+) {
+  const existing = await db.appSettings.get("lastExportedAt");
+  await db.appSettings.put({
+    key: "lastExportedAt",
+    value: exportedAt,
+    createdAt: existing?.createdAt ?? exportedAt,
+    updatedAt: exportedAt,
+  });
 }
 
 export async function replaceDataFromExport(

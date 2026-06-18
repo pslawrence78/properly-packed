@@ -15,6 +15,7 @@ import { PageSection } from "../../components/layout/PageSection";
 import { useDatabaseStatus } from "../../hooks/use-database-status";
 import { usePwaStatus } from "../../hooks/use-pwa-status";
 import { createReleaseChecks, formatOnlineState } from "./pwa-status";
+import { EXPORT_SCHEMA_VERSION } from "../import-export";
 
 const plannedSettings = [
   "iPhone Safari install",
@@ -51,7 +52,7 @@ export function SettingsScreen() {
       </div>
 
       <PageSection title="App details">
-        <dl className="grid gap-3 text-sm sm:grid-cols-3">
+        <dl className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-lg bg-cream p-4">
             <dt className="font-medium text-charcoal/64">Name</dt>
             <dd className="mt-1 font-semibold text-charcoal">{APP_NAME}</dd>
@@ -60,7 +61,13 @@ export function SettingsScreen() {
             <dt className="font-medium text-charcoal/64">Version</dt>
             <dd className="mt-1 font-semibold text-charcoal">v{APP_VERSION}</dd>
           </div>
-          <div className="rounded-lg bg-cream p-4 sm:col-span-3 xl:col-span-1">
+          <div className="rounded-lg bg-cream p-4">
+            <dt className="font-medium text-charcoal/64">Export schema</dt>
+            <dd className="mt-1 font-semibold text-charcoal">
+              v{EXPORT_SCHEMA_VERSION.replace(/^.*-v/, "")}
+            </dd>
+          </div>
+          <div className="rounded-lg bg-cream p-4 sm:col-span-2 xl:col-span-1">
             <dt className="font-medium text-charcoal/64">Tagline</dt>
             <dd className="mt-1 font-semibold text-charcoal">{APP_TAGLINE}</dd>
           </div>

@@ -83,5 +83,8 @@ export type ImportPreview = {
   schemaVersion: string;
   exportedAt: string;
   appVersion: string;
+  databaseVersion: number;
+  supported: true;
+  compatibilityMessage: string;
   counts: Record<ExportTableName, number>;
 };
