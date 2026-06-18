@@ -2,10 +2,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { PackingItem, Traveller } from "../db/types";
+import type { Bag, PackingItem, Traveller } from "../db/types";
 
 const mocks = vi.hoisted(() => ({
   items: [] as PackingItem[],
+  bags: [] as Bag[],
   createPackingItem: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -14,7 +15,7 @@ vi.mock("../db/repositories/app-settings-repository", () => ({
   getSetting: vi.fn().mockResolvedValue({ value: ["documents", "misc"] }),
 }));
 vi.mock("../db/repositories/bags-repository", () => ({
-  listBagsForTrip: vi.fn().mockResolvedValue([]),
+  listBagsForTrip: vi.fn(async () => [...mocks.bags]),
 }));
 vi.mock("../db/repositories/trips-repository", () => ({
   getTrip: vi.fn().mockResolvedValue({ id: "trip:1", name: "City break" }),
@@ -44,6 +45,7 @@ import { PackingListScreen } from "../features/packing-items/PackingListScreen";
 describe("PackingListScreen", () => {
   beforeEach(() => {
     mocks.items = [];
+    mocks.bags = [];
     mocks.createPackingItem.mockClear();
   });
 
@@ -81,6 +83,21 @@ describe("PackingListScreen", () => {
     expect(screen.getAllByText(/Shared · documents/)).toHaveLength(1);
     expect(screen.getAllByText(/Unassigned · documents/)).toHaveLength(1);
   });
+
+  it("shows assigned, unassigned and unavailable bag locations clearly", async () => {
+    mocks.bags = [bag("bag:main", "Main suitcase")];
+    mocks.items = [
+      { ...packingItem("unassigned", "Passport"), bagId: "bag:main" },
+      packingItem("unassigned", "Sun cream"),
+      { ...packingItem("unassigned", "Old cable"), bagId: "bag:missing" },
+    ];
+    renderScreen();
+
+    expect(await screen.findByText("Bag: Main suitcase")).toBeInTheDocument();
+    expect(screen.getByText("Bag: No bag assigned")).toBeInTheDocument();
+    expect(screen.getByText("Bag: Bag unavailable")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "No bag assigned" })).toBeInTheDocument();
+  });
 });
 
 function renderScreen() {
@@ -112,6 +129,20 @@ function packingItem(
     dependencyItemIds: [],
     source: "manual",
     forgottenRisk: false,
+    createdAt: "2026-06-18T00:00:00.000Z",
+    updatedAt: "2026-06-18T00:00:00.000Z",
+  };
+}
+
+function bag(id: string, name: string): Bag {
+  return {
+    id,
+    tripId: "trip:1",
+    name,
+    bagType: "suitcase",
+    isHandLuggage: false,
+    isTravelDay: false,
+    isCruiseEmbarkation: false,
     createdAt: "2026-06-18T00:00:00.000Z",
     updatedAt: "2026-06-18T00:00:00.000Z",
   };

@@ -31,10 +31,11 @@ export async function createBag(
   input: BagInput,
   db: ProperlyPackedDatabase = appDb,
 ) {
+  const validated = await validateBagInput(input, db);
   const now = new Date().toISOString();
   const bag: Bag = {
     id: createId("bag"),
-    ...input,
+    ...validated,
     createdAt: now,
     updatedAt: now,
   };
@@ -48,12 +49,57 @@ export async function updateBag(
   updates: Partial<BagInput>,
   db: ProperlyPackedDatabase = appDb,
 ) {
+  const existing = await getBag(id, db);
+  if (!existing) {
+    throw new Error("Bag not found.");
+  }
+  const validated = await validateBagInput(
+    {
+      tripId: updates.tripId ?? existing.tripId,
+      name: updates.name ?? existing.name,
+      bagType: updates.bagType ?? existing.bagType,
+      ownerTravellerId:
+        "ownerTravellerId" in updates
+          ? updates.ownerTravellerId
+          : existing.ownerTravellerId,
+      notes: "notes" in updates ? updates.notes : existing.notes,
+      isHandLuggage: updates.isHandLuggage ?? existing.isHandLuggage,
+      isTravelDay: updates.isTravelDay ?? existing.isTravelDay,
+      isCruiseEmbarkation:
+        updates.isCruiseEmbarkation ?? existing.isCruiseEmbarkation,
+    },
+    db,
+  );
   await db.bags.update(id, {
-    ...updates,
+    ...validated,
     updatedAt: new Date().toISOString(),
   });
 
   return getBag(id, db);
+}
+
+export async function validateBagInput(
+  input: BagInput,
+  db: ProperlyPackedDatabase = appDb,
+): Promise<BagInput> {
+  const name = input.name.trim();
+  if (!name) {
+    throw new Error("Bag name is required.");
+  }
+
+  if (input.ownerTravellerId) {
+    const owner = await db.travellers.get(input.ownerTravellerId);
+    if (!owner || owner.archivedAt) {
+      throw new Error("The selected owner traveller is not available.");
+    }
+  }
+
+  return {
+    ...input,
+    name,
+    ownerTravellerId: input.ownerTravellerId || undefined,
+    notes: input.notes?.trim() || undefined,
+  };
 }
 
 export async function archiveBag(

@@ -59,6 +59,13 @@ export function BagForm({
       setError("Bag name is required.");
       return;
     }
+    if (
+      ownerTravellerId &&
+      !travellers.some((traveller) => traveller.id === ownerTravellerId)
+    ) {
+      setError("Select an available traveller or leave the bag without an owner.");
+      return;
+    }
 
     setError(undefined);
     setSaving(true);
@@ -73,6 +80,10 @@ export function BagForm({
         isTravelDay,
         isCruiseEmbarkation,
       });
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error ? submitError.message : "Could not save bag.",
+      );
     } finally {
       setSaving(false);
     }
@@ -122,13 +133,16 @@ export function BagForm({
             value={ownerTravellerId}
             onChange={(event) => setOwnerTravellerId(event.target.value)}
           >
-            <option value="">Shared or unowned</option>
+            <option value="">No owner (neutral bag)</option>
             {travellers.map((traveller) => (
               <option key={traveller.id} value={traveller.id}>
                 {traveller.name}
               </option>
             ))}
           </select>
+          <span className="block text-sm font-normal leading-5 text-charcoal/65">
+            Optional. Shared and Unassigned are item states, not bag owners.
+          </span>
         </label>
       </div>
 
@@ -151,7 +165,7 @@ export function BagForm({
       </div>
 
       <label className="block space-y-2 text-sm font-medium text-charcoal">
-        <span>Notes</span>
+        <span>Notes (optional)</span>
         <textarea
           className="min-h-24 w-full rounded-lg border border-charcoal/15 bg-cream px-3 py-3 text-base outline-none focus:border-teal"
           value={notes}

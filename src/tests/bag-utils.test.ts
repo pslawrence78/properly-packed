@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { PackingItem } from "../db/types";
-import { calculateBagProgress, listItemsForBag } from "../features/bags/bag-utils";
+import {
+  calculateBagProgress,
+  getBagName,
+  listItemsForBag,
+} from "../features/bags/bag-utils";
 
 function item(overrides: Partial<PackingItem>): PackingItem {
   return {
@@ -8,7 +12,7 @@ function item(overrides: Partial<PackingItem>): PackingItem {
     tripId: "trip:1",
     name: overrides.name ?? "Passport",
     ownershipScope: "traveller",
-    ownerTravellerId: "traveller:phil",
+    ownerTravellerId: "traveller:test-adult",
     category: "documents",
     quantity: 1,
     priority: "essential",
@@ -37,8 +41,10 @@ describe("bag utilities", () => {
       ),
     ).toEqual({
       bagId: "bag:1",
+      itemCount: 3,
       packedCount: 1,
       packableCount: 2,
+      outstandingCount: 1,
       notTakingCount: 1,
       percentPacked: 50,
     });
@@ -49,5 +55,10 @@ describe("bag utilities", () => {
     const assigned = item({ id: "item:assigned", bagId: "bag:1" });
 
     expect(listItemsForBag([unassigned, assigned])).toEqual([unassigned]);
+  });
+
+  it("uses clear labels for unassigned and unavailable bag references", () => {
+    expect(getBagName([], undefined)).toBe("No bag assigned");
+    expect(getBagName([], "bag:missing")).toBe("Bag unavailable");
   });
 });

@@ -2,8 +2,10 @@ import type { Bag, PackingItem } from "../../db/types";
 
 export type BagProgress = {
   bagId?: string;
+  itemCount: number;
   packedCount: number;
   packableCount: number;
+  outstandingCount: number;
   notTakingCount: number;
   percentPacked: number;
 };
@@ -27,8 +29,10 @@ export function calculateBagProgress(
 
   return {
     bagId,
+    itemCount: matchingItems.length,
     packedCount,
     packableCount: packableItems.length,
+    outstandingCount: packableItems.length - packedCount,
     notTakingCount,
     percentPacked:
       packableItems.length === 0
@@ -43,8 +47,8 @@ export function listItemsForBag(items: PackingItem[], bagId?: string) {
 
 export function getBagName(bags: Bag[], bagId?: string) {
   if (!bagId) {
-    return "Unassigned";
+    return "No bag assigned";
   }
 
-  return bags.find((bag) => bag.id === bagId)?.name ?? "Unknown bag";
+  return bags.find((bag) => bag.id === bagId)?.name ?? "Bag unavailable";
 }

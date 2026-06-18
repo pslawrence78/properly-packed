@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { PackingItem, Traveller } from "../db/types";
+import type { Bag, PackingItem, Traveller } from "../db/types";
 import { PackingItemForm } from "../features/packing-items/PackingItemForm";
 
 const travellers: Traveller[] = [
@@ -167,4 +167,58 @@ describe("PackingItemForm", () => {
     );
     expect(onSubmit).not.toHaveBeenCalled();
   });
+
+  it("can assign, change and clear a bag", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const bags = [bag("bag:main", "Main suitcase"), bag("bag:day", "Day bag")];
+    render(
+      <PackingItemForm
+        bags={bags}
+        categories={["documents"]}
+        initialItem={{
+          id: "item:1",
+          tripId: "trip:1",
+          name: "Passport",
+          ownershipScope: "unassigned",
+          category: "documents",
+          quantity: 1,
+          priority: "essential",
+          status: "needed",
+          bagId: "bag:main",
+          flags: [],
+          dependencyItemIds: [],
+          source: "manual",
+          forgottenRisk: false,
+          createdAt: "2026-06-18T00:00:00.000Z",
+          updatedAt: "2026-06-18T00:00:00.000Z",
+        }}
+        travellers={travellers}
+        tripId="trip:1"
+        submitLabel="Save item"
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText("Bag"), "bag:day");
+    await user.selectOptions(screen.getByLabelText("Bag"), "");
+    await user.click(screen.getByRole("button", { name: "Save item" }));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ bagId: undefined }),
+    );
+  });
 });
+
+function bag(id: string, name: string): Bag {
+  return {
+    id,
+    tripId: "trip:1",
+    name,
+    bagType: "day-bag",
+    isHandLuggage: false,
+    isTravelDay: false,
+    isCruiseEmbarkation: false,
+    createdAt: "2026-06-18T00:00:00.000Z",
+    updatedAt: "2026-06-18T00:00:00.000Z",
+  };
+}

@@ -84,6 +84,26 @@ describe("bags repository", () => {
     expect(await listBagsForTrip("trip:1", db)).toEqual([]);
     expect((await db.packingItems.get(item.id))?.bagId).toBeUndefined();
   });
+
+  it("allows no owner and rejects an unavailable owner", async () => {
+    const db = createTestDatabase();
+    const base = {
+      tripId: "trip:1",
+      name: "Main suitcase",
+      bagType: "suitcase" as const,
+      isHandLuggage: false,
+      isTravelDay: false,
+      isCruiseEmbarkation: false,
+    };
+
+    await expect(createBag(base, db)).resolves.toMatchObject({
+      name: "Main suitcase",
+      ownerTravellerId: undefined,
+    });
+    await expect(
+      createBag({ ...base, name: "Day bag", ownerTravellerId: "traveller:missing" }, db),
+    ).rejects.toThrow("selected owner traveller is not available");
+  });
 });
 
 function traveller(

@@ -6,8 +6,8 @@ import { BagForm } from "../features/bags/BagForm";
 
 const travellers: Traveller[] = [
   {
-    id: "traveller:beck",
-    name: "Beck",
+    id: "traveller:test-adult",
+    name: "Test Adult",
     travellerType: "adult",
     defaultIncluded: true,
     createdAt: "2026-06-16T00:00:00.000Z",
@@ -40,7 +40,33 @@ describe("BagForm", () => {
         name: "Pool bag",
         bagType: "day-bag",
         isTravelDay: true,
+        ownerTravellerId: undefined,
       }),
     );
+  });
+
+  it("allows an optional real traveller owner", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <BagForm
+        travellers={travellers}
+        tripId="trip:1"
+        submitLabel="Create bag"
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Bag name"), "Cabin bag");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: /^Owner/ }),
+      "traveller:test-adult",
+    );
+    await user.click(screen.getByRole("button", { name: "Create bag" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ ownerTravellerId: "traveller:test-adult" }),
+    );
+    expect(screen.queryByRole("option", { name: /Shared|Unassigned/ })).not.toBeInTheDocument();
   });
 });

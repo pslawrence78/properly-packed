@@ -141,6 +141,21 @@ describe("packing item utilities", () => {
     expect(filterPackingItems([searchable], { ...filters, search: "blue cabin" }, bags)).toEqual([searchable]);
   });
 
+  it("filters items with no bag assigned", () => {
+    const unbagged = item({ id: "unbagged", bagId: undefined });
+    const bagged = item({ id: "bagged", bagId: "bag:main" });
+    expect(
+      filterPackingItems([unbagged, bagged], {
+        ownerTravellerId: "",
+        category: "",
+        status: "",
+        priority: "",
+        bagId: "__unassigned",
+        search: "",
+      }),
+    ).toEqual([unbagged]);
+  });
+
   it.each(["to-buy", "to-wash", "to-charge", "to-download", "to-decide"])(
     "filters the %s action status",
     (status) => {

@@ -268,7 +268,10 @@ export function PackingItemForm({
         </div>
       </FormSection>
 
-      <FormSection title="Bag assignment">
+      <FormSection
+        title="Bag assignment"
+        description="Optional. Choose where this item is packed, move it to another bag, or leave it without a bag."
+      >
         <Field label="Bag">
           <select
             className={`${controlClass} max-w-2xl`}

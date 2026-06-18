@@ -27,6 +27,7 @@ import {
   type PackingFilters,
   UNASSIGNED_OWNERSHIP_FILTER,
 } from "./packing-item-utils";
+import { getBagName } from "../bags/bag-utils";
 
 export function PackingListScreen() {
   const { tripId } = useParams();
@@ -239,10 +240,14 @@ export function PackingListScreen() {
           ) : filteredItems.length === 0 ? (
             <section className="rounded-lg border border-charcoal/10 bg-paper p-5 shadow-soft sm:p-6">
               <h2 className="text-xl font-semibold text-charcoal">
-                No items match these filters
+                {filters.bagId === "__unassigned"
+                  ? "No items have no bag assigned"
+                  : "No items match these filters"}
               </h2>
               <p className="mt-2 text-sm leading-6 text-charcoal/70">
-                Clear the filters to return to the full packing list.
+                {filters.bagId === "__unassigned"
+                  ? "Every packing item currently has a bag. You can clear an item's bag assignment at any time."
+                  : "Clear the filters to return to the full packing list."}
               </p>
               <button
                 className="trip-action mt-4 min-h-11"
@@ -470,7 +475,6 @@ function PackingItemCard({
   const responsible = travellers.find(
     (traveller) => traveller.id === item.responsibleTravellerId,
   );
-  const bag = bags.find((bag) => bag.id === item.bagId);
   const isPacked = item.status === "packed";
   const isNotTaking = item.status === "not-taking";
   const statusLabel =
@@ -508,7 +512,7 @@ function PackingItemCard({
             </p>
           ) : null}
           <p className="mt-1 text-sm text-charcoal/70">
-            Bag: {bag?.name ?? "No bag assigned"}
+            Bag: {getBagName(bags, item.bagId)}
           </p>
           {item.notes ? (
             <p className="mt-2 text-sm leading-6 text-charcoal/70">

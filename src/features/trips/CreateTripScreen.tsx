@@ -1,7 +1,6 @@
 import { Plane, UserPlus } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { ensureDatabaseReady } from "../../db";
-import { createDefaultBagsForTrip } from "../../db/repositories/bags-repository";
 import { listContextOptions } from "../../db/repositories/context-options-repository";
 import { createTrip } from "../../db/repositories/trips-repository";
 import { listTravellers } from "../../db/repositories/travellers-repository";
@@ -70,7 +69,6 @@ export function CreateTripScreen() {
           submitLabel="Create trip"
           onSubmit={async (trip) => {
             const created = await createTrip(trip);
-            await createDefaultBagsForTrip(created.id, formData.data.travellers);
             navigate(`/trips/${created.id}`);
           }}
         />
