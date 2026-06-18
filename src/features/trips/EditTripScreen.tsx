@@ -1,5 +1,6 @@
 import { Plane } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
+import { TripNotFoundState } from "../../components/empty-states/TripNotFoundState";
 import { ensureDatabaseReady } from "../../db";
 import { listContextOptions } from "../../db/repositories/context-options-repository";
 import { getTrip, updateTrip } from "../../db/repositories/trips-repository";
@@ -41,7 +42,13 @@ export function EditTripScreen() {
       </div>
 
       {tripData.state === "loading" ? <TripFormStatus message="Loading trip..." /> : null}
-      {tripData.state === "error" ? <TripFormStatus message={tripData.error} /> : null}
+      {tripData.state === "error" ? (
+        tripData.error === "Trip not found." ? (
+          <TripNotFoundState />
+        ) : (
+          <TripFormStatus message={tripData.error} />
+        )
+      ) : null}
       {tripData.state === "ready" ? (
         <TripForm
           initialTrip={tripData.data.trip}

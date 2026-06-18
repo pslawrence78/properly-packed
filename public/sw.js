@@ -1,10 +1,15 @@
-const CACHE_NAME = "properly-packed-shell-v0.17.0";
+// Keep this release cache aligned with APP_VERSION when completing a tranche.
+const CACHE_NAME = "properly-packed-shell-v0.21.0";
 const BASE_PATH = normaliseBasePath(new URL(self.registration.scope).pathname);
 const SHELL_ASSETS = [
   withBasePath("/"),
   withBasePath("/index.html"),
   withBasePath("/manifest.webmanifest"),
   withBasePath("/icons/icon.svg"),
+  withBasePath("/icons/icon-192.png"),
+  withBasePath("/icons/icon-512.png"),
+  withBasePath("/icons/icon-maskable-512.png"),
+  withBasePath("/icons/apple-touch-icon.png"),
 ];
 const STATIC_PATH_PREFIXES = [withBasePath("/assets/"), withBasePath("/icons/")];
 

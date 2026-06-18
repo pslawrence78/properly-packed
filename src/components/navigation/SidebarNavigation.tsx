@@ -32,7 +32,8 @@ export function SidebarNavigation() {
             <Compass aria-hidden="true" className="h-4 w-4" />
             Next adventure
           </div>
-          Demo trip links follow the active trip when one is set.
+          Create or select an active trip to unlock its itinerary, packing, outfits,
+          gadgets and bags.
         </div>
       </div>
     </aside>

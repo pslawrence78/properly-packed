@@ -1,6 +1,7 @@
 import { Luggage } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { TripNotFoundState } from "../../components/empty-states/TripNotFoundState";
 import { ensureDatabaseReady } from "../../db";
 import {
   archiveBag,
@@ -63,7 +64,13 @@ export function BagsScreen() {
   return (
     <section className="space-y-5">
       {bagData.state === "loading" ? <BagStatus message="Loading bags..." /> : null}
-      {bagData.state === "error" ? <BagStatus message={bagData.error} /> : null}
+      {bagData.state === "error" ? (
+        bagData.error === "Trip not found." ? (
+          <TripNotFoundState />
+        ) : (
+          <BagStatus message={bagData.error} />
+        )
+      ) : null}
       {bagData.state === "ready" ? (
         <>
           <div className="pp-page-hero rounded-lg border border-charcoal/10 bg-paper p-5 shadow-soft sm:p-7">

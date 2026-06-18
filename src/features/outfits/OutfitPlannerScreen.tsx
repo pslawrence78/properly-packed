@@ -1,6 +1,7 @@
 import { Shirt } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { TripNotFoundState } from "../../components/empty-states/TripNotFoundState";
 import { ensureDatabaseReady } from "../../db";
 import {
   createOutfit,
@@ -95,7 +96,11 @@ export function OutfitPlannerScreen() {
         <OutfitStatus message="Loading outfit planner..." />
       ) : null}
       {outfitData.state === "error" ? (
-        <OutfitStatus message={outfitData.error} />
+        outfitData.error === "Trip not found." ? (
+          <TripNotFoundState />
+        ) : (
+          <OutfitStatus message={outfitData.error} />
+        )
       ) : null}
       {outfitData.state === "ready" ? (
         <>

@@ -1,6 +1,7 @@
 import { Cable } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { TripNotFoundState } from "../../components/empty-states/TripNotFoundState";
 import { ensureDatabaseReady } from "../../db";
 import {
   applyGadgetBundleToTrip,
@@ -91,7 +92,11 @@ export function GadgetPlannerScreen() {
         <GadgetStatus message="Loading gadget planner..." />
       ) : null}
       {gadgetData.state === "error" ? (
-        <GadgetStatus message={gadgetData.error} />
+        gadgetData.error === "Trip not found." ? (
+          <TripNotFoundState />
+        ) : (
+          <GadgetStatus message={gadgetData.error} />
+        )
       ) : null}
       {gadgetData.state === "ready" ? (
         <>

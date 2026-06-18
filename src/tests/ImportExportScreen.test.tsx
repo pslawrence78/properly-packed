@@ -47,7 +47,7 @@ describe("ImportExportScreen", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("v0.20.0")).toBeInTheDocument();
+    expect(screen.getByText("v0.21.0")).toBeInTheDocument();
     expect(screen.getByText("Database version")).toBeInTheDocument();
     expect(screen.getByText("v4")).toBeInTheDocument();
     expect(screen.getByText("Export schema")).toBeInTheDocument();
@@ -62,7 +62,7 @@ describe("ImportExportScreen", () => {
 
     expect(await screen.findByRole("heading", { name: "Import preview" })).toBeInTheDocument();
     expect(screen.getAllByText(/properly-packed-export-v2/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/App version 0.20.0/)).toBeInTheDocument();
+    expect(screen.getByText(/App version 0.21.0/)).toBeInTheDocument();
     expect(screen.getByText(/Supported current v2 backup/)).toBeInTheDocument();
     expect(mocks.replaceDataFromExport).not.toHaveBeenCalled();
 
@@ -83,7 +83,7 @@ function validExport() {
   return {
     schemaVersion: "properly-packed-export-v2",
     exportedAt: "2026-06-18T12:00:00.000Z",
-    appVersion: "0.20.0",
+    appVersion: "0.21.0",
     databaseVersion: 4,
     tables: Object.fromEntries(exportTableNames.map((name) => [name, []])),
   };

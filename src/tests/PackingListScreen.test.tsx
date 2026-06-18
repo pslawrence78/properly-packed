@@ -7,6 +7,7 @@ import type { Bag, PackingItem, Traveller } from "../db/types";
 const mocks = vi.hoisted(() => ({
   items: [] as PackingItem[],
   bags: [] as Bag[],
+  tripExists: true,
   createPackingItem: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -18,7 +19,9 @@ vi.mock("../db/repositories/bags-repository", () => ({
   listBagsForTrip: vi.fn(async () => [...mocks.bags]),
 }));
 vi.mock("../db/repositories/trips-repository", () => ({
-  getTrip: vi.fn().mockResolvedValue({ id: "trip:1", name: "City break" }),
+  getTrip: vi.fn(async () =>
+    mocks.tripExists ? { id: "trip:1", name: "City break" } : undefined,
+  ),
 }));
 vi.mock("../db/repositories/travellers-repository", () => ({
   listTravellers: vi.fn().mockResolvedValue([
@@ -46,6 +49,7 @@ describe("PackingListScreen", () => {
   beforeEach(() => {
     mocks.items = [];
     mocks.bags = [];
+    mocks.tripExists = true;
     mocks.createPackingItem.mockClear();
   });
 
@@ -98,11 +102,28 @@ describe("PackingListScreen", () => {
     expect(screen.getByText("Bag: Bag unavailable")).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "No bag assigned" })).toBeInTheDocument();
   });
+
+  it("offers safe recovery when a trip ID does not exist", async () => {
+    mocks.tripExists = false;
+    renderScreen("/trips/trip:missing/pack");
+
+    expect(
+      await screen.findByRole("heading", { name: "Trip not found" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Select a trip" })).toHaveAttribute(
+      "href",
+      "/trips",
+    );
+    expect(screen.getByRole("link", { name: "Create trip" })).toHaveAttribute(
+      "href",
+      "/trips/new",
+    );
+  });
 });
 
-function renderScreen() {
+function renderScreen(path = "/trips/trip:1/pack") {
   return render(
-    <MemoryRouter initialEntries={["/trips/trip:1/pack"]}>
+    <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/trips/:tripId/pack" element={<PackingListScreen />} />
       </Routes>

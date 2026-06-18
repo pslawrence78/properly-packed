@@ -1,5 +1,6 @@
 import { Map } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
+import { TripNotFoundState } from "../../components/empty-states/TripNotFoundState";
 import { ensureDatabaseReady } from "../../db";
 import { getContextLabelsByIds } from "../../db/context-options";
 import { listContextOptions } from "../../db/repositories/context-options-repository";
@@ -43,7 +44,13 @@ export function TripOverviewScreen() {
   return (
     <section className="space-y-5">
       {tripData.state === "loading" ? <TripStatus message="Loading trip..." /> : null}
-      {tripData.state === "error" ? <TripStatus message={tripData.error} /> : null}
+      {tripData.state === "error" ? (
+        tripData.error === "Trip not found." ? (
+          <TripNotFoundState />
+        ) : (
+          <TripStatus message={tripData.error} />
+        )
+      ) : null}
       {tripData.state === "ready" ? (
         <>
           <div className="pp-page-hero rounded-lg border border-charcoal/10 bg-paper p-5 shadow-soft sm:p-7">

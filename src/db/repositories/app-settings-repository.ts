@@ -15,6 +15,8 @@ export type DatabaseStatus = {
   bagTypeCount: number;
 };
 
+export const ACTIVE_TRIP_CHANGED_EVENT = "properly-packed:active-trip-changed";
+
 export async function getSetting(
   key: string,
   db: ProperlyPackedDatabase = appDb,
@@ -49,11 +51,20 @@ export async function setActiveTripId(
   tripId: string,
   db: ProperlyPackedDatabase = appDb,
 ) {
-  return putSetting("activeTripId", tripId, db);
+  const setting = await putSetting("activeTripId", tripId, db);
+  notifyActiveTripChanged();
+  return setting;
 }
 
 export async function clearActiveTripId(db: ProperlyPackedDatabase = appDb) {
   await db.appSettings.delete("activeTripId");
+  notifyActiveTripChanged();
+}
+
+function notifyActiveTripChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(ACTIVE_TRIP_CHANGED_EVENT));
+  }
 }
 
 export async function getDatabaseStatus(

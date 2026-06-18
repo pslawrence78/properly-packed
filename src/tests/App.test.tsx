@@ -19,7 +19,11 @@ describe("Properly Packed app shell", () => {
 
     expect(screen.getAllByLabelText("Primary navigation").length).toBeGreaterThan(0);
     expect(screen.getAllByRole("link", { name: "Trips" }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("link", { name: "Pack" }).length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("link", {
+        name: /Pack\. Create or select an active trip first/i,
+      }).length,
+    ).toBeGreaterThan(0);
     expect(screen.getAllByRole("link", { name: "Library" }).length).toBeGreaterThan(0);
   });
 
@@ -46,7 +50,7 @@ describe("Properly Packed app shell", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: "Settings" }),
     ).toBeInTheDocument();
-    expect(APP_VERSION).toBe("0.20.0");
+    expect(APP_VERSION).toBe("0.21.0");
     expect(screen.getAllByText(`v${APP_VERSION}`).length).toBeGreaterThan(0);
     expect(screen.getByText("Export schema")).toBeInTheDocument();
     expect(screen.getAllByText("v2").length).toBeGreaterThan(0);

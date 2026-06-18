@@ -40,6 +40,7 @@ export type AppRoute = {
 export type NavigationItem = {
   label: string;
   to: string;
+  tripPath?: "itinerary" | "pack" | "outfits" | "gadgets" | "bags";
   icon: LucideIcon;
   match: string[];
 };
@@ -91,7 +92,7 @@ export const appRoutes: AppRoute[] = [
   {
     path: "/travellers",
     title: "Travellers",
-    description: "Review and lightly edit seeded family travellers.",
+    description: "Create and manage the people included in trips.",
     comingLater: ["Traveller templates", "Per-person defaults"],
     element: <TravellersScreen />,
   },
@@ -199,9 +200,10 @@ export const desktopNavigation: NavigationItem[] = [
   { label: "Trips", to: "/trips", icon: Plane, match: ["/trips"] },
   {
     label: "Itinerary",
-    to: "/trips/demo/itinerary",
+    to: "/trips",
+    tripPath: "itinerary",
     icon: CalendarDays,
-    match: ["/trips/demo/itinerary"],
+    match: [],
   },
   {
     label: "Travellers",
@@ -211,27 +213,31 @@ export const desktopNavigation: NavigationItem[] = [
   },
   {
     label: "Pack",
-    to: "/trips/demo/pack",
+    to: "/trips",
+    tripPath: "pack",
     icon: Backpack,
-    match: ["/trips/demo/pack"],
+    match: [],
   },
   {
     label: "Outfits",
-    to: "/trips/demo/outfits",
+    to: "/trips",
+    tripPath: "outfits",
     icon: Shirt,
-    match: ["/trips/demo/outfits"],
+    match: [],
   },
   {
     label: "Gadgets",
-    to: "/trips/demo/gadgets",
+    to: "/trips",
+    tripPath: "gadgets",
     icon: Cable,
-    match: ["/trips/demo/gadgets"],
+    match: [],
   },
   {
     label: "Bags",
-    to: "/trips/demo/bags",
+    to: "/trips",
+    tripPath: "bags",
     icon: Luggage,
-    match: ["/trips/demo/bags"],
+    match: [],
   },
   { label: "Library", to: "/library", icon: Library, match: ["/library"] },
   { label: "Settings", to: "/settings", icon: Settings, match: ["/settings"] },
@@ -241,27 +247,31 @@ export const mobileNavigation: NavigationItem[] = [
   { label: "Trips", to: "/trips", icon: Plane, match: ["/trips"] },
   {
     label: "Itinerary",
-    to: "/trips/demo/itinerary",
+    to: "/trips",
+    tripPath: "itinerary",
     icon: CalendarDays,
-    match: ["/trips/demo/itinerary"],
+    match: [],
   },
   {
     label: "Pack",
-    to: "/trips/demo/pack",
+    to: "/trips",
+    tripPath: "pack",
     icon: Backpack,
-    match: ["/trips/demo/pack"],
+    match: [],
   },
   {
     label: "Outfits",
-    to: "/trips/demo/outfits",
+    to: "/trips",
+    tripPath: "outfits",
     icon: Shirt,
-    match: ["/trips/demo/outfits"],
+    match: [],
   },
   {
     label: "Bags",
-    to: "/trips/demo/bags",
+    to: "/trips",
+    tripPath: "bags",
     icon: Luggage,
-    match: ["/trips/demo/bags"],
+    match: [],
   },
   { label: "Library", to: "/library", icon: Library, match: ["/library"] },
 ];

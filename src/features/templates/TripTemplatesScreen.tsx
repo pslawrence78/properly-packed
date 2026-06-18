@@ -1,6 +1,7 @@
 import { ClipboardList } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { TripNotFoundState } from "../../components/empty-states/TripNotFoundState";
 import { ensureDatabaseReady } from "../../db";
 import {
   addUsefulExtraToTrip,
@@ -72,7 +73,13 @@ export function TripTemplatesScreen() {
       {data.state === "loading" ? (
         <TemplateStatus message="Loading template suggestions..." />
       ) : null}
-      {data.state === "error" ? <TemplateStatus message={data.error} /> : null}
+      {data.state === "error" ? (
+        data.error === "Trip not found." ? (
+          <TripNotFoundState />
+        ) : (
+          <TemplateStatus message={data.error} />
+        )
+      ) : null}
       {data.state === "ready" ? (
         <>
           <div className="pp-page-hero rounded-lg border border-charcoal/10 bg-paper p-5 shadow-soft sm:p-7">

@@ -1,6 +1,7 @@
 import { Check, PackagePlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
+import { TripNotFoundState } from "../../components/empty-states/TripNotFoundState";
 import { ensureDatabaseReady } from "../../db";
 import { getSetting } from "../../db/repositories/app-settings-repository";
 import { listBagsForTrip } from "../../db/repositories/bags-repository";
@@ -125,7 +126,11 @@ export function PackingListScreen() {
         <PackingStatus message="Loading packing list..." />
       ) : null}
       {packingData.state === "error" ? (
-        <PackingStatus message={packingData.error} />
+        packingData.error === "Trip not found." ? (
+          <TripNotFoundState />
+        ) : (
+          <PackingStatus message={packingData.error} />
+        )
       ) : null}
       {packingData.state === "ready" ? (
         <>

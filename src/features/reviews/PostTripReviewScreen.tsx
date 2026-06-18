@@ -1,6 +1,7 @@
 import { NotebookPen } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
+import { TripNotFoundState } from "../../components/empty-states/TripNotFoundState";
 import { ensureDatabaseReady } from "../../db";
 import { listPackingItemsForTrip } from "../../db/repositories/packing-items-repository";
 import {
@@ -90,7 +91,11 @@ export function PostTripReviewScreen() {
         <ReviewStatus message="Loading post-trip review..." />
       ) : null}
       {reviewData.state === "error" ? (
-        <ReviewStatus message={reviewData.error} />
+        reviewData.error === "Trip not found." ? (
+          <TripNotFoundState />
+        ) : (
+          <ReviewStatus message={reviewData.error} />
+        )
       ) : null}
       {reviewData.state === "ready" ? (
         <>

@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import type { NavigationItem } from "../../app/routes";
 import { ensureDatabaseReady } from "../../db";
-import { getActiveTripId } from "../../db/repositories/app-settings-repository";
+import { ACTIVE_TRIP_CHANGED_EVENT } from "../../db/repositories/app-settings-repository";
+import { getActiveTrip } from "../../db/repositories/trips-repository";
 import { cn } from "../../lib/cn";
 
 type NavLinkItemProps = {
@@ -19,48 +20,49 @@ export function NavLinkItem({ item, variant }: NavLinkItemProps) {
 
   useEffect(() => {
     if (
-      !["Itinerary", "Pack", "Outfits", "Gadgets", "Bags"].includes(item.label)
+      !item.tripPath
     ) {
       return;
     }
 
     let cancelled = false;
-    ensureDatabaseReady()
-      .then(() => getActiveTripId())
-      .then((tripId) => {
-        if (!cancelled) {
-          setActiveTripId(tripId);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setActiveTripId(undefined);
-        }
-      });
+    const loadActiveTrip = () => {
+      ensureDatabaseReady()
+        .then(() => getActiveTrip())
+        .then((trip) => {
+          if (!cancelled) {
+            setActiveTripId(trip?.id);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setActiveTripId(undefined);
+          }
+        });
+    };
+
+    loadActiveTrip();
+    window.addEventListener(ACTIVE_TRIP_CHANGED_EVENT, loadActiveTrip);
 
     return () => {
       cancelled = true;
+      window.removeEventListener(ACTIVE_TRIP_CHANGED_EVENT, loadActiveTrip);
     };
-  }, [item.label, pathname]);
+  }, [item.tripPath, pathname]);
 
-  return (
-    <Link
-      to={to}
-      aria-label={item.label}
-      aria-current={isActive ? "page" : undefined}
-      className={cn(
-        "group flex items-center gap-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal focus-visible:ring-offset-2 focus-visible:ring-offset-cream",
-        variant === "desktop" &&
-          (isActive
-            ? "min-h-12 rounded-2xl bg-teal px-3 py-2 text-white shadow-tactile hover:bg-tealDeep hover:text-white focus-visible:bg-teal focus-visible:text-white"
-            : "min-h-12 rounded-2xl px-3 py-2 text-charcoalSoft hover:bg-tealSoft hover:text-tealDeep hover:shadow-tactile"),
-        variant === "mobile" &&
-          "min-h-14 flex-1 flex-col justify-center gap-1 rounded-[1.1rem] px-1 text-xs text-charcoalSoft",
-        isActive &&
-          variant === "mobile" &&
-          "bg-tealSoft text-tealDeep shadow-tactile",
-      )}
-    >
+  const className = cn(
+    "group flex items-center gap-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal focus-visible:ring-offset-2 focus-visible:ring-offset-cream",
+    variant === "desktop" &&
+      (isActive
+        ? "min-h-12 rounded-2xl bg-teal px-3 py-2 text-white shadow-tactile hover:bg-tealDeep hover:text-white focus-visible:bg-teal focus-visible:text-white"
+        : "min-h-12 rounded-2xl px-3 py-2 text-charcoalSoft hover:bg-tealSoft hover:text-tealDeep hover:shadow-tactile"),
+    variant === "mobile" &&
+      "min-h-14 flex-1 flex-col justify-center gap-1 rounded-[1.1rem] px-1 text-xs text-charcoalSoft",
+    isActive && variant === "mobile" && "bg-tealSoft text-tealDeep shadow-tactile",
+  );
+
+  const content = (
+    <>
       <span
         className={cn(
           "flex shrink-0 items-center justify-center rounded-xl transition",
@@ -82,33 +84,43 @@ export function NavLinkItem({ item, variant }: NavLinkItemProps) {
         />
       </span>
       <span>{item.label}</span>
+    </>
+  );
+
+  if (!to) {
+    const helper = "Create or select an active trip first.";
+    return (
+      <span
+        aria-disabled="true"
+        aria-label={`${item.label}. ${helper}`}
+        className={cn(
+          className,
+          "cursor-not-allowed opacity-45 hover:bg-transparent hover:text-charcoalSoft hover:shadow-none",
+        )}
+        role="link"
+        tabIndex={0}
+        title={helper}
+      >
+        {content}
+      </span>
+    );
+  }
+
+  return (
+    <Link
+      to={to}
+      aria-label={item.label}
+      aria-current={isActive ? "page" : undefined}
+      className={className}
+    >
+      {content}
     </Link>
   );
 }
 
 function getNavigationTarget(item: NavigationItem, activeTripId?: string) {
-  if (!activeTripId) {
-    return item.to;
-  }
-
-  if (item.label === "Pack") {
-    return `/trips/${activeTripId}/pack`;
-  }
-
-  if (item.label === "Itinerary") {
-    return `/trips/${activeTripId}/itinerary`;
-  }
-
-  if (item.label === "Outfits") {
-    return `/trips/${activeTripId}/outfits`;
-  }
-
-  if (item.label === "Gadgets") {
-    return `/trips/${activeTripId}/gadgets`;
-  }
-
-  if (item.label === "Bags") {
-    return `/trips/${activeTripId}/bags`;
+  if (item.tripPath) {
+    return activeTripId ? `/trips/${activeTripId}/${item.tripPath}` : undefined;
   }
 
   return item.to;

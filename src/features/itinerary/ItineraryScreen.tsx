@@ -1,6 +1,7 @@
 import { CalendarDays, Copy, Save } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { TripNotFoundState } from "../../components/empty-states/TripNotFoundState";
 import { PageSection } from "../../components/layout/PageSection";
 import { ensureDatabaseReady } from "../../db";
 import { listContextOptions } from "../../db/repositories/context-options-repository";
@@ -93,7 +94,11 @@ export function ItineraryScreen() {
         <ItineraryStatus message="Loading itinerary..." />
       ) : null}
       {itineraryData.state === "error" ? (
-        <ItineraryStatus message={itineraryData.error} />
+        itineraryData.error === "Trip not found." ? (
+          <TripNotFoundState />
+        ) : (
+          <ItineraryStatus message={itineraryData.error} />
+        )
       ) : null}
       {itineraryData.state === "ready" ? (
         <ItineraryEditor
