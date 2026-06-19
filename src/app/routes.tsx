@@ -183,8 +183,7 @@ export const appRoutes: AppRoute[] = [
   {
     path: "/settings",
     title: "Settings",
-    description:
-      "Later this will show app settings, version details and data tools.",
+    description: "Manage local data, travellers, trip options and app details.",
     comingLater: [
       "Version",
       "Local-first data",
@@ -273,5 +272,10 @@ export const mobileNavigation: NavigationItem[] = [
     icon: Luggage,
     match: [],
   },
-  { label: "Library", to: "/library", icon: Library, match: ["/library"] },
+  {
+    label: "More",
+    to: "/settings",
+    icon: Settings,
+    match: ["/settings", "/travellers", "/library"],
+  },
 ];

@@ -1,13 +1,18 @@
 import {
+  Cable,
   CheckCircle2,
   CircleAlert,
   Download,
+  Info,
+  Library,
   ListChecks,
   Settings,
   Smartphone,
+  Users,
   Wifi,
   WifiOff,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import { APP_NAME, APP_TAGLINE, APP_VERSION } from "../../lib/app-version";
 import { FeaturePreviewCard } from "../../components/cards/FeaturePreviewCard";
@@ -22,6 +27,79 @@ const plannedSettings = [
   "Installed PWA launch",
   "Offline launch",
   "Export/import on device",
+];
+
+const managementGroups: Array<{
+  title: string;
+  links: Array<{
+    description: string;
+    icon: LucideIcon;
+    label: string;
+    to: string;
+  }>;
+}> = [
+  {
+    title: "Data Safety",
+    links: [
+      {
+        description: "Export a complete local backup or restore one safely.",
+        icon: Download,
+        label: "Backup & Restore",
+        to: "/settings/import-export",
+      },
+    ],
+  },
+  {
+    title: "People & Trips",
+    links: [
+      {
+        description: "Create and maintain the people included in trips.",
+        icon: Users,
+        label: "Travellers",
+        to: "/travellers",
+      },
+      {
+        description: "Manage reusable climate, stay, transport and activity options.",
+        icon: ListChecks,
+        label: "Trip Contexts",
+        to: "/settings/contexts",
+      },
+    ],
+  },
+  {
+    title: "Libraries",
+    links: [
+      {
+        description: "Browse reusable packing templates.",
+        icon: Library,
+        label: "Templates",
+        to: "/library/templates",
+      },
+      {
+        description: "Review useful but easy-to-forget items.",
+        icon: ListChecks,
+        label: "Useful Extras",
+        to: "/library/useful-extras",
+      },
+      {
+        description: "Browse reusable device, charger and cable kits.",
+        icon: Cable,
+        label: "Gadget Bundles",
+        to: "/library/gadgets",
+      },
+    ],
+  },
+  {
+    title: "App",
+    links: [
+      {
+        description: "View app, database, storage and release information.",
+        icon: Info,
+        label: "Version & Storage",
+        to: "/settings#app-details",
+      },
+    ],
+  },
 ];
 
 export function SettingsScreen() {
@@ -40,19 +118,61 @@ export function SettingsScreen() {
       <div className="pp-page-hero rounded-lg border border-charcoal/10 bg-paper p-5 shadow-soft sm:p-7">
         <p className="inline-flex items-center gap-2 rounded-full bg-tealSoft px-3 py-1 text-sm font-bold uppercase tracking-wide text-tealDeep">
           <Settings aria-hidden="true" className="h-4 w-4" />
-          Release
+          Manage
         </p>
         <h1 className="mt-3 text-3xl font-black tracking-normal text-charcoal sm:text-4xl">
           Settings
         </h1>
         <p className="mt-3 max-w-3xl text-base leading-7 text-charcoal/74">
-          Version details, install readiness and local data tools for the first
-          usable Properly Packed release.
+          Essential local data, traveller, trip-planning and app controls in one
+          mobile-friendly place.
         </p>
       </div>
 
-      <PageSection title="App details">
-        <dl className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
+      <PageSection title="Manage Properly Packed">
+        <p className="mb-4 max-w-3xl text-sm leading-6 text-charcoal/70">
+          Backup this device, manage travellers and trip options, or open your
+          reusable packing libraries.
+        </p>
+        <div className="grid gap-4 lg:grid-cols-2">
+          {managementGroups.map((group) => (
+            <section
+              className="rounded-lg border border-charcoal/10 bg-cream p-4"
+              key={group.title}
+            >
+              <h2 className="text-base font-semibold text-charcoal">{group.title}</h2>
+              <div className="mt-3 grid gap-2">
+                {group.links.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      className="flex min-h-14 items-center gap-3 rounded-lg border border-charcoal/10 bg-paper px-4 py-3 text-left transition hover:border-teal/30 hover:bg-tealSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal"
+                      key={item.to}
+                      to={item.to}
+                    >
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-tealSoft text-tealDeep">
+                        <Icon aria-hidden="true" className="h-5 w-5" />
+                      </span>
+                      <span>
+                        <span className="block font-semibold text-charcoal">
+                          {item.label}
+                        </span>
+                        <span className="mt-1 block text-xs leading-5 text-charcoal/65">
+                          {item.description}
+                        </span>
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
+      </PageSection>
+
+      <div id="app-details">
+        <PageSection title="App details">
+          <dl className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-lg bg-cream p-4">
             <dt className="font-medium text-charcoal/64">Name</dt>
             <dd className="mt-1 font-semibold text-charcoal">{APP_NAME}</dd>
@@ -71,8 +191,9 @@ export function SettingsScreen() {
             <dt className="font-medium text-charcoal/64">Tagline</dt>
             <dd className="mt-1 font-semibold text-charcoal">{APP_TAGLINE}</dd>
           </div>
-        </dl>
-      </PageSection>
+          </dl>
+        </PageSection>
+      </div>
 
       <PageSection title="Local database">
         {databaseStatus.state === "loading" ? (
@@ -102,7 +223,7 @@ export function SettingsScreen() {
             <div className="rounded-lg bg-cream p-4">
               <dt className="font-medium text-charcoal/64">Travellers</dt>
               <dd className="mt-1 font-semibold text-charcoal">
-                {databaseStatus.status.travellerCount} seeded
+                {databaseStatus.status.travellerCount} saved locally
               </dd>
             </div>
             <div className="rounded-lg bg-cream p-4">
@@ -188,27 +309,6 @@ export function SettingsScreen() {
         </ul>
       </PageSection>
 
-      <PageSection title="Data tools">
-        <div className="flex flex-col gap-3 text-sm text-charcoal/72 sm:flex-row sm:items-center sm:justify-between">
-          <p>
-            Export a JSON backup or replace this device's local database from a
-            previous Properly Packed export.
-          </p>
-          <Link className="trip-action shrink-0 gap-2" to="/settings/import-export">
-            <Download aria-hidden="true" className="h-4 w-4" />
-            Import and export
-          </Link>
-        </div>
-      </PageSection>
-
-      <PageSection title="Trip planning options">
-        <div className="flex flex-col gap-3 text-sm text-charcoal/72 sm:flex-row sm:items-center sm:justify-between">
-          <p>Manage reusable climate, accommodation, transport and activity options.</p>
-          <Link className="trip-action shrink-0 gap-2" to="/settings/contexts">
-            <ListChecks aria-hidden="true" className="h-4 w-4" /> Manage trip contexts
-          </Link>
-        </div>
-      </PageSection>
     </section>
   );
 }

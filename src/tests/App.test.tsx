@@ -25,6 +25,10 @@ describe("Properly Packed app shell", () => {
       }).length,
     ).toBeGreaterThan(0);
     expect(screen.getAllByRole("link", { name: "Library" }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("link", { name: "More" })).toHaveAttribute(
+      "href",
+      "/settings",
+    );
   });
 
   it("renders the trips route", async () => {
@@ -50,9 +54,45 @@ describe("Properly Packed app shell", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: "Settings" }),
     ).toBeInTheDocument();
-    expect(APP_VERSION).toBe("0.22.0");
+    expect(APP_VERSION).toBe("0.23.0");
     expect(screen.getAllByText(`v${APP_VERSION}`).length).toBeGreaterThan(0);
     expect(screen.getByText("Export schema")).toBeInTheDocument();
     expect(screen.getAllByText("v2").length).toBeGreaterThan(0);
+  });
+
+  it("opens the mobile administration hub without an active trip", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("link", { name: "More" }));
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Settings" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Backup & Restore/ })).toHaveAttribute(
+      "href",
+      "/settings/import-export",
+    );
+    expect(
+      screen
+        .getAllByRole("link", { name: /Travellers/ })
+        .some((link) => link.getAttribute("href") === "/travellers"),
+    ).toBe(true);
+    expect(screen.getByRole("link", { name: /Trip Contexts/ })).toHaveAttribute(
+      "href",
+      "/settings/contexts",
+    );
+    expect(screen.getByRole("link", { name: /Templates/ })).toHaveAttribute(
+      "href",
+      "/library/templates",
+    );
+    expect(screen.getByRole("link", { name: /Useful Extras/ })).toHaveAttribute(
+      "href",
+      "/library/useful-extras",
+    );
+    expect(screen.getByRole("link", { name: /Gadget Bundles/ })).toHaveAttribute(
+      "href",
+      "/library/gadgets",
+    );
   });
 });
