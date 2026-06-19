@@ -106,7 +106,7 @@ export function TripsScreen() {
   );
 }
 
-function TripCard({
+export function TripCard({
   active,
   onArchive,
   onDuplicate,
@@ -192,7 +192,8 @@ function TripCard({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="max-w-2xl">
+          <div className="flex flex-wrap gap-2">
           <Link className="trip-action" to={`/trips/${trip.id}`}>
             View
           </Link>
@@ -202,14 +203,43 @@ function TripCard({
           <button className="trip-action" onClick={onSetActive} type="button">
             Set active
           </button>
-          <button className="trip-action" onClick={onDuplicate} type="button">
-            Duplicate
+          <button
+            className="trip-action"
+            onClick={() => {
+              if (
+                window.confirm(
+                  `Duplicate “${trip.name}” trip details only? Travellers, dates, destinations, contexts and notes will be copied. Packing items, bags, outfits, itinerary, gadgets and applied templates will not be copied.`,
+                )
+              ) {
+                onDuplicate();
+              }
+            }}
+            type="button"
+          >
+            Duplicate trip details
           </button>
           {trip.status === "draft" ? (
-            <button className="trip-action" onClick={onArchive} type="button">
+            <button
+              className="trip-action"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    `Archive draft “${trip.name}”? It will be hidden from active trip lists, but its saved data will remain on this device.`,
+                  )
+                ) {
+                  onArchive();
+                }
+              }}
+              type="button"
+            >
               Archive draft
             </button>
           ) : null}
+          </div>
+          <p className="mt-3 text-xs leading-5 text-charcoal/60">
+            Duplication copies trip details only. Packing items, bags, outfits,
+            itinerary, gadgets and applied templates are not copied.
+          </p>
         </div>
       </div>
     </article>

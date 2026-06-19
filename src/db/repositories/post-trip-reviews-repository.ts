@@ -179,23 +179,14 @@ export async function promoteLearningToUsefulExtra(
 
 export async function promoteLearningToTemplate(
   learningId: string,
-  trip: Trip,
+  templateId: string,
   db: ProperlyPackedDatabase = appDb,
 ) {
   const learning = await requireLearning(learningId, db);
-  const template = await db.templates.toArray().then((templates) => {
-    const tripTypeLabel = labelTripType(trip.tripType);
-    return (
-      templates.find(
-        (candidate) =>
-          candidate.active &&
-          candidate.name.toLocaleLowerCase() === tripTypeLabel.toLocaleLowerCase(),
-      ) ?? templates.find((candidate) => candidate.active)
-    );
-  });
+  const template = templateId ? await db.templates.get(templateId) : undefined;
 
-  if (!template) {
-    throw new Error("No active template is available.");
+  if (!template?.active) {
+    throw new Error("Choose an active template before promoting this learning.");
   }
 
   const now = new Date().toISOString();
@@ -293,13 +284,6 @@ function categoryForLearning(learningType: ReviewLearningType) {
   }
 
   return "misc";
-}
-
-function labelTripType(tripType: Trip["tripType"]) {
-  return tripType
-    .split("-")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
 }
 
 function normaliseKey(value: string) {

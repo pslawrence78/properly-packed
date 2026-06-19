@@ -89,10 +89,18 @@ export function TripOverviewScreen() {
                 </button>
                 <button
                   className="trip-action"
-                  onClick={() => refreshAfter(duplicateTripShell(tripData.data.trip.id))}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Duplicate “${tripData.data.trip.name}” trip details only? Travellers, dates, destinations, contexts and notes will be copied. Packing items, bags, outfits, itinerary, gadgets and applied templates will not be copied.`,
+                      )
+                    ) {
+                      void refreshAfter(duplicateTripShell(tripData.data.trip.id));
+                    }
+                  }}
                   type="button"
                 >
-                  Duplicate shell
+                  Duplicate trip details
                 </button>
                 <button
                   className="trip-action"
@@ -105,6 +113,10 @@ export function TripOverviewScreen() {
                 </button>
               </div>
             </div>
+            <p className="mt-4 text-xs leading-5 text-charcoal/60">
+              Duplication copies trip details only. Packing items, bags, outfits,
+              itinerary, gadgets and applied templates are not copied.
+            </p>
           </div>
 
           <section className="rounded-lg border border-charcoal/10 bg-paper p-5 shadow-soft sm:p-6">

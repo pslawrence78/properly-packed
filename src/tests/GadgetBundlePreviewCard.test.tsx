@@ -12,15 +12,15 @@ describe("GadgetBundlePreviewCard", () => {
       bundle: {
         id: "bundle:1",
         name: "Camera kit",
-        ownerTravellerId: "traveller:phil",
+        ownerTravellerId: "traveller:adult",
         applicableTripTypes: ["cruise"],
         applicableContexts: ["photography"],
         createdAt: "2026-06-16T00:00:00.000Z",
         updatedAt: "2026-06-16T00:00:00.000Z",
       },
       ownerTraveller: {
-        id: "traveller:phil",
-        name: "Phil",
+        id: "traveller:adult",
+        name: "Adult traveller",
         travellerType: "adult",
         defaultIncluded: true,
         createdAt: "2026-06-16T00:00:00.000Z",
@@ -67,8 +67,11 @@ describe("GadgetBundlePreviewCard", () => {
     render(
       <GadgetBundlePreviewCard
         preview={preview}
+        travellers={[preview.ownerTraveller!]}
+        selectedOwnerId="traveller:adult"
         selectedOptionalIds={[]}
         onApply={vi.fn()}
+        onSelectOwner={vi.fn()}
         onToggleOptional={onToggleOptional}
       />,
     );
@@ -80,5 +83,62 @@ describe("GadgetBundlePreviewCard", () => {
     await user.click(screen.getByRole("checkbox"));
 
     expect(onToggleOptional).toHaveBeenCalledWith("item:cloth");
+  });
+
+  it("blocks application until an owner is explicitly selected", () => {
+    const preview: GadgetBundlePreview = {
+      bundle: {
+        id: "bundle:travel-charger",
+        name: "Travel charger bundle",
+        applicableTripTypes: [],
+        applicableContexts: [],
+        createdAt: "2026-06-16T00:00:00.000Z",
+        updatedAt: "2026-06-16T00:00:00.000Z",
+      },
+      suggestions: [
+        {
+          bundleItem: {
+            id: "item:charger",
+            bundleId: "bundle:travel-charger",
+            name: "Travel charger",
+            category: "electronics",
+            required: true,
+            quantity: 1,
+            flags: ["charger"],
+            createdAt: "2026-06-16T00:00:00.000Z",
+            updatedAt: "2026-06-16T00:00:00.000Z",
+          },
+          optional: false,
+          status: "new",
+        },
+      ],
+      requiredCount: 1,
+      optionalCount: 0,
+      duplicateCount: 0,
+    };
+
+    render(
+      <GadgetBundlePreviewCard
+        preview={preview}
+        travellers={[
+          {
+            id: "traveller:adult",
+            name: "Adult traveller",
+            travellerType: "adult",
+            defaultIncluded: true,
+            createdAt: "2026-06-16T00:00:00.000Z",
+            updatedAt: "2026-06-16T00:00:00.000Z",
+          },
+        ]}
+        selectedOwnerId=""
+        selectedOptionalIds={[]}
+        onApply={vi.fn()}
+        onSelectOwner={vi.fn()}
+        onToggleOptional={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Apply bundle" })).toBeDisabled();
+    expect(screen.getByText(/Choose who this gadget bundle is for/i)).toBeInTheDocument();
   });
 });

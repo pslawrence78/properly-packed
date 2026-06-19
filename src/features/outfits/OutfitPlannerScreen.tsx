@@ -229,8 +229,27 @@ export function OutfitPlannerScreen() {
                     setEditingItemId(undefined);
                   }}
                   onCreateItem={(input) => refreshAfter(createOutfitItem(input))}
-                  onDelete={() => refreshAfter(deleteOutfit(outfit.id))}
-                  onDeleteItem={(itemId) => refreshAfter(deleteOutfitItem(itemId))}
+                  onDelete={() => {
+                    if (
+                      window.confirm(
+                        `Remove “${outfit.name}”? Its outfit items will also be removed. Linked packing items will not be changed.`,
+                      )
+                    ) {
+                      void refreshAfter(deleteOutfit(outfit.id));
+                    }
+                  }}
+                  onDeleteItem={(itemId) => {
+                    const item = outfitData.data.outfitItems.find(
+                      (candidate) => candidate.id === itemId,
+                    );
+                    if (
+                      window.confirm(
+                        `Remove “${item?.name ?? "this outfit item"}”? Any linked packing item will not be changed.`,
+                      )
+                    ) {
+                      void refreshAfter(deleteOutfitItem(itemId));
+                    }
+                  }}
                   onEdit={() => setEditingOutfitId(outfit.id)}
                   onEditItem={(itemId) => setEditingItemId(itemId)}
                   onStatus={(status) =>

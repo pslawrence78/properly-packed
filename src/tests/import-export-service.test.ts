@@ -48,7 +48,7 @@ describe("import and export service", () => {
     expect(exportData).toMatchObject({
       schemaVersion: EXPORT_SCHEMA_VERSION,
       exportedAt: "2026-06-16T12:00:00.000Z",
-      appVersion: "0.21.0",
+      appVersion: "0.22.0",
       databaseVersion: 4,
     });
     expect(exportData.appVersion).toBe(APP_VERSION);

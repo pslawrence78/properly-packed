@@ -14,7 +14,7 @@ import {
 import { listPackingItemsForTrip } from "../../db/repositories/packing-items-repository";
 import { getTrip } from "../../db/repositories/trips-repository";
 import { listTravellers } from "../../db/repositories/travellers-repository";
-import type { PackingItem } from "../../db/types";
+import type { PackingItem, Traveller } from "../../db/types";
 import { PageSection } from "../../components/layout/PageSection";
 import { useAsyncData } from "../../hooks/use-async-data";
 
@@ -22,6 +22,7 @@ export function GadgetPlannerScreen() {
   const { tripId } = useParams();
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedOptionalIds, setSelectedOptionalIds] = useState<Record<string, string[]>>({});
+  const [selectedOwnerIds, setSelectedOwnerIds] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
 
   const gadgetData = useAsyncData(async () => {
@@ -154,6 +155,14 @@ export function GadgetPlannerScreen() {
                   <GadgetBundlePreviewCard
                     key={preview.bundle.id}
                     preview={preview}
+                    travellers={gadgetData.data.travellers.filter((traveller) =>
+                      gadgetData.data.trip.travellerIds.includes(traveller.id),
+                    )}
+                    selectedOwnerId={
+                      selectedOwnerIds[preview.bundle.id] ??
+                      preview.ownerTraveller?.id ??
+                      ""
+                    }
                     selectedOptionalIds={selectedOptionalIds[preview.bundle.id] ?? []}
                     onApply={() =>
                       refreshAfter(
@@ -161,6 +170,10 @@ export function GadgetPlannerScreen() {
                           bundleId: preview.bundle.id,
                           trip: gadgetData.data.trip,
                           travellers: gadgetData.data.travellers,
+                          ownerTravellerId:
+                            selectedOwnerIds[preview.bundle.id] ??
+                            preview.ownerTraveller?.id ??
+                            "",
                           optionalItemIds: selectedOptionalIds[preview.bundle.id] ?? [],
                         }),
                         `${preview.bundle.name} applied.`,
@@ -168,6 +181,12 @@ export function GadgetPlannerScreen() {
                     }
                     onToggleOptional={(itemId) =>
                       toggleOptional(preview.bundle.id, itemId)
+                    }
+                    onSelectOwner={(ownerTravellerId) =>
+                      setSelectedOwnerIds((current) => ({
+                        ...current,
+                        [preview.bundle.id]: ownerTravellerId,
+                      }))
                     }
                   />
                 ))}
@@ -212,14 +231,20 @@ export function GadgetPlannerScreen() {
 
 export function GadgetBundlePreviewCard({
   onApply,
+  onSelectOwner,
   onToggleOptional,
   preview,
+  selectedOwnerId,
   selectedOptionalIds,
+  travellers,
 }: {
   onApply: () => void;
+  onSelectOwner: (ownerTravellerId: string) => void;
   onToggleOptional: (itemId: string) => void;
   preview: GadgetBundlePreview;
+  selectedOwnerId: string;
   selectedOptionalIds: string[];
+  travellers: Traveller[];
 }) {
   const newRequiredCount = preview.suggestions.filter(
     (suggestion) => !suggestion.optional && suggestion.status === "new",
@@ -232,14 +257,33 @@ export function GadgetBundlePreviewCard({
         <div>
           <h2 className="text-xl font-semibold text-charcoal">{preview.bundle.name}</h2>
           <p className="mt-1 text-sm leading-6 text-charcoal/70">
-            Owner: {preview.ownerTraveller?.name ?? "No matching traveller"} -{" "}
             {preview.requiredCount} required, {preview.optionalCount} optional,{" "}
             {preview.duplicateCount} duplicate.
           </p>
+          <label className="mt-3 block space-y-1 text-sm font-medium text-charcoal">
+            <span>Bundle owner</span>
+            <select
+              className="min-h-11 w-full rounded-lg border border-charcoal/15 bg-paper px-3 text-sm outline-none focus:border-teal"
+              value={selectedOwnerId}
+              onChange={(event) => onSelectOwner(event.target.value)}
+            >
+              <option value="">Choose a traveller</option>
+              {travellers.map((traveller) => (
+                <option key={traveller.id} value={traveller.id}>
+                  {traveller.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {!selectedOwnerId ? (
+            <p className="mt-2 text-xs leading-5 text-charcoal/60">
+              Choose who this gadget bundle is for before applying it.
+            </p>
+          ) : null}
         </div>
         <button
           className="min-h-11 rounded-lg bg-slateAccent px-4 py-3 text-sm font-semibold text-cream shadow-soft disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={!preview.ownerTraveller || newRequiredCount + selectedOptionalCount === 0}
+          disabled={!selectedOwnerId || newRequiredCount + selectedOptionalCount === 0}
           onClick={onApply}
           type="button"
         >

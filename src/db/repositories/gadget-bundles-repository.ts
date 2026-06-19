@@ -30,6 +30,7 @@ export type ApplyGadgetBundleInput = {
   bundleId: string;
   trip: Trip;
   travellers: Traveller[];
+  ownerTravellerId: string;
   optionalItemIds?: string[];
 };
 
@@ -88,6 +89,7 @@ export async function previewGadgetBundleForTrip(
   bundleId: string,
   trip: Trip,
   travellers: Traveller[],
+  ownerTravellerId?: string,
   db: ProperlyPackedDatabase = appDb,
 ) {
   const bundle = await db.gadgetBundles.get(bundleId);
@@ -101,7 +103,14 @@ export async function previewGadgetBundleForTrip(
     db.packingItems.where("tripId").equals(trip.id).toArray(),
   ]);
 
-  return buildGadgetBundlePreview(bundle, bundleItems, trip, travellers, existingItems);
+  return buildGadgetBundlePreview(
+    bundle,
+    bundleItems,
+    trip,
+    travellers,
+    existingItems,
+    ownerTravellerId,
+  );
 }
 
 export async function applyGadgetBundleToTrip(
@@ -113,11 +122,12 @@ export async function applyGadgetBundleToTrip(
     input.bundleId,
     input.trip,
     input.travellers,
+    input.ownerTravellerId,
     db,
   );
 
   if (!preview.ownerTraveller) {
-    throw new Error("No owner traveller is available for this bundle.");
+    throw new Error("Choose who this gadget bundle is for.");
   }
 
   const selectedSuggestions = preview.suggestions.filter(
@@ -196,8 +206,9 @@ export function buildGadgetBundlePreview(
   trip: Trip,
   travellers: Traveller[],
   existingItems: PackingItem[],
+  ownerTravellerId = bundle.ownerTravellerId,
 ): GadgetBundlePreview {
-  const ownerTraveller = resolveBundleOwner(bundle, trip, travellers);
+  const ownerTraveller = resolveBundleOwner(ownerTravellerId, trip, travellers);
   const suggestions = bundleItems.map((bundleItem): GadgetBundleSuggestion => {
     const duplicate =
       ownerTraveller &&
@@ -287,16 +298,16 @@ function dependencyAppearsPresent(notes: string, items: PackingItem[]) {
   );
 }
 
-function resolveBundleOwner(bundle: GadgetBundle, trip: Trip, travellers: Traveller[]) {
-  const tripTravellers = travellers.filter((traveller) =>
-    trip.travellerIds.includes(traveller.id),
-  );
+function resolveBundleOwner(
+  ownerTravellerId: string | undefined,
+  trip: Trip,
+  travellers: Traveller[],
+) {
+  if (!ownerTravellerId || !trip.travellerIds.includes(ownerTravellerId)) {
+    return undefined;
+  }
 
-  return (
-    tripTravellers.find((traveller) => traveller.id === bundle.ownerTravellerId) ??
-    tripTravellers.find((traveller) => traveller.travellerType === "adult") ??
-    tripTravellers[0]
-  );
+  return travellers.find((traveller) => traveller.id === ownerTravellerId);
 }
 
 function statusForBundleItem(bundleItem: GadgetBundleItem): PackingItem["status"] {

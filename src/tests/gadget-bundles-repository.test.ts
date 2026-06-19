@@ -37,11 +37,20 @@ describe("gadget bundles repository", () => {
     const bundleId = "seed:gadget-bundle:camera-kit";
     await db.trips.add(trip);
 
-    const preview = await previewGadgetBundleForTrip(bundleId, trip, travellers, db);
+    const preview = await previewGadgetBundleForTrip(
+      bundleId,
+      trip,
+      travellers,
+      travellers[0].id,
+      db,
+    );
     expect(preview.requiredCount).toBe(4);
     expect(preview.optionalCount).toBe(1);
 
-    const result = await applyGadgetBundleToTrip({ bundleId, trip, travellers }, db);
+    const result = await applyGadgetBundleToTrip(
+      { bundleId, trip, travellers, ownerTravellerId: travellers[0].id },
+      db,
+    );
     const items = await db.packingItems.where("tripId").equals(trip.id).toArray();
     const tasks = await db.preTripTasks.where("tripId").equals(trip.id).toArray();
 
@@ -50,7 +59,10 @@ describe("gadget bundles repository", () => {
     expect(items.every((item) => item.sourceId)).toBe(true);
     expect(tasks.map((task) => task.taskType).sort()).toEqual(["charge", "charge"]);
 
-    const secondResult = await applyGadgetBundleToTrip({ bundleId, trip, travellers }, db);
+    const secondResult = await applyGadgetBundleToTrip(
+      { bundleId, trip, travellers, ownerTravellerId: travellers[0].id },
+      db,
+    );
     expect(secondResult.insertedItems).toBe(0);
     expect(secondResult.skippedDuplicates).toBe(4);
   });
@@ -68,6 +80,7 @@ describe("gadget bundles repository", () => {
         bundleId: "seed:gadget-bundle:camera-kit",
         trip,
         travellers,
+        ownerTravellerId: travellers[0].id,
         optionalItemIds: ["seed:gadget-bundle-item:camera:lens-cloth"],
       },
       db,
@@ -76,6 +89,51 @@ describe("gadget bundles repository", () => {
     expect((await db.packingItems.toArray()).map((item) => item.name)).toContain(
       "Lens cloth",
     );
+  });
+
+  it("requires an explicit trip traveller and never falls back to the first adult", async () => {
+    const db = createTestDatabase();
+    await applyInitialSeed(db, () => "2026-06-16T00:00:00.000Z");
+    const travellers = [
+      traveller("traveller:adult", "Adult traveller"),
+      traveller("traveller:companion", "Travel companion"),
+    ];
+    await db.travellers.bulkAdd(travellers);
+    const trip = tripRow(travellers.map((traveller) => traveller.id));
+    await db.trips.add(trip);
+    const bundleId = "seed:gadget-bundle:camera-kit";
+
+    const preview = await previewGadgetBundleForTrip(
+      bundleId,
+      trip,
+      travellers,
+      undefined,
+      db,
+    );
+    expect(preview.ownerTraveller).toBeUndefined();
+
+    await expect(
+      applyGadgetBundleToTrip(
+        { bundleId, trip, travellers, ownerTravellerId: "" },
+        db,
+      ),
+    ).rejects.toThrow("Choose who this gadget bundle is for");
+    expect(await db.packingItems.count()).toBe(0);
+
+    await applyGadgetBundleToTrip(
+      {
+        bundleId,
+        trip,
+        travellers,
+        ownerTravellerId: "traveller:companion",
+      },
+      db,
+    );
+    expect(
+      (await db.packingItems.toArray()).every(
+        (item) => item.ownerTravellerId === "traveller:companion",
+      ),
+    ).toBe(true);
   });
 
   it("detects missing dependencies and charge/download filters", () => {
@@ -134,7 +192,7 @@ function packingItem(
     tripId: "trip:1",
     name,
     ownershipScope: "traveller",
-    ownerTravellerId: "traveller:phil",
+    ownerTravellerId: "traveller:adult",
     category: "electronics",
     quantity: 1,
     priority: "important",

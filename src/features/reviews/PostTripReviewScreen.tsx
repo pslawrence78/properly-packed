@@ -14,8 +14,15 @@ import {
   promoteLearningToTemplate,
   promoteLearningToUsefulExtra,
 } from "../../db/repositories/post-trip-reviews-repository";
+import { listTemplates } from "../../db/repositories/templates-repository";
 import { getTrip, updateTrip } from "../../db/repositories/trips-repository";
-import type { PackingItem, ReviewLearning, ReviewLearningType, Trip } from "../../db/types";
+import type {
+  PackingItem,
+  ReviewLearning,
+  ReviewLearningType,
+  Template,
+  Trip,
+} from "../../db/types";
 import { PageSection } from "../../components/layout/PageSection";
 import { useAsyncData } from "../../hooks/use-async-data";
 import { reviewLearningOptions } from "./review-utils";
@@ -30,6 +37,9 @@ export function PostTripReviewScreen() {
     notes: "",
   });
   const [summary, setSummary] = useState("");
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<
+    Record<string, string>
+  >({});
 
   const reviewData = useAsyncData(async () => {
     await ensureDatabaseReady();
@@ -38,9 +48,10 @@ export function PostTripReviewScreen() {
       throw new Error("Trip not found.");
     }
 
-    const [trip, packingItems] = await Promise.all([
+    const [trip, packingItems, templates] = await Promise.all([
       getTrip(tripId),
       listPackingItemsForTrip(tripId),
+      listTemplates(),
     ]);
 
     if (!trip) {
@@ -48,7 +59,7 @@ export function PostTripReviewScreen() {
     }
 
     const reviewSummary = await getPostTripReviewSummary(trip.id);
-    return { trip, packingItems, ...reviewSummary };
+    return { trip, packingItems, templates, ...reviewSummary };
   }, [tripId, refreshKey]);
 
   async function refreshAfter(action: Promise<unknown>, success: string) {
@@ -77,12 +88,16 @@ export function PostTripReviewScreen() {
     setManualValues({ itemName: "", learningType: "forgotten", notes: "" });
   }
 
-  async function confirmed(action: Promise<unknown>, success: string, prompt: string) {
+  async function confirmed(
+    action: () => Promise<unknown>,
+    success: string,
+    prompt: string,
+  ) {
     if (!window.confirm(prompt)) {
       return;
     }
 
-    await refreshAfter(action, success);
+    await refreshAfter(action(), success);
   }
 
   return (
@@ -239,31 +254,43 @@ export function PostTripReviewScreen() {
                   <LearningCard
                     key={learning.id}
                     learning={learning}
-                    trip={reviewData.data.trip}
+                    templates={reviewData.data.templates}
+                    selectedTemplateId={selectedTemplateIds[learning.id] ?? ""}
+                    onTemplateChange={(templateId) =>
+                      setSelectedTemplateIds((current) => ({
+                        ...current,
+                        [learning.id]: templateId,
+                      }))
+                    }
                     onAlwaysSuggest={() =>
                       confirmed(
-                        markLearningAlwaysSuggest(learning.id),
+                        () => markLearningAlwaysSuggest(learning.id),
                         `${learning.itemName} will always be suggested.`,
                         "Add this learning to your suggestion library as always-suggest?",
                       )
                     }
                     onNeverSuggest={() =>
                       confirmed(
-                        markLearningNeverSuggest(learning.id),
+                        () => markLearningNeverSuggest(learning.id),
                         `${learning.itemName} will no longer be suggested.`,
                         "Add this learning to your suggestion library as never-suggest?",
                       )
                     }
-                    onPromoteTemplate={() =>
-                      confirmed(
-                        promoteLearningToTemplate(learning.id, reviewData.data.trip),
-                        `${learning.itemName} promoted to a template.`,
-                        "Add this learning to a reusable template?",
-                      )
-                    }
+                    onPromoteTemplate={() => {
+                      const templateId = selectedTemplateIds[learning.id];
+                      const template = reviewData.data.templates.find(
+                        (candidate) => candidate.id === templateId,
+                      );
+                      if (!template) return;
+                      void confirmed(
+                        () => promoteLearningToTemplate(learning.id, template.id),
+                        `${learning.itemName} added to ${template.name}.`,
+                        `Add this learning to “${template.name}”?`,
+                      );
+                    }}
                     onPromoteUsefulExtra={() =>
                       confirmed(
-                        promoteLearningToUsefulExtra(learning.id),
+                        () => promoteLearningToUsefulExtra(learning.id),
                         `${learning.itemName} promoted to Useful Extras.`,
                         "Add this learning to Useful Extras?",
                       )
@@ -339,19 +366,24 @@ export function ReviewItemRow({
   );
 }
 
-function LearningCard({
+export function LearningCard({
   learning,
   onAlwaysSuggest,
   onNeverSuggest,
   onPromoteTemplate,
   onPromoteUsefulExtra,
+  onTemplateChange,
+  selectedTemplateId,
+  templates,
 }: {
   learning: ReviewLearning;
-  trip: Trip;
   onAlwaysSuggest: () => void;
   onNeverSuggest: () => void;
   onPromoteTemplate: () => void;
   onPromoteUsefulExtra: () => void;
+  onTemplateChange: (templateId: string) => void;
+  selectedTemplateId: string;
+  templates: Template[];
 }) {
   return (
     <article className="rounded-lg border border-charcoal/10 bg-cream p-4">
@@ -374,20 +406,59 @@ function LearningCard({
             </p>
           ) : null}
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex max-w-md flex-col gap-3">
+          <label className="block space-y-1 text-sm font-medium text-charcoal">
+            <span>Target template</span>
+            <select
+              className="min-h-11 w-full rounded-lg border border-charcoal/15 bg-paper px-3 text-sm outline-none focus:border-teal"
+              value={selectedTemplateId}
+              onChange={(event) => onTemplateChange(event.target.value)}
+            >
+              <option value="">Choose a template</option>
+              {templates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {!selectedTemplateId ? (
+            <p className="text-xs leading-5 text-charcoal/60">
+              Choose a template before promoting this learning.
+            </p>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
           <ReviewButton label="Always suggest" onClick={onAlwaysSuggest} />
           <ReviewButton label="Never suggest" onClick={onNeverSuggest} />
           <ReviewButton label="Useful extra" onClick={onPromoteUsefulExtra} />
-          <ReviewButton label="Template" onClick={onPromoteTemplate} />
+          <ReviewButton
+            disabled={!selectedTemplateId}
+            label="Add to template"
+            onClick={onPromoteTemplate}
+          />
+          </div>
         </div>
       </div>
     </article>
   );
 }
 
-function ReviewButton({ label, onClick }: { label: string; onClick: () => void }) {
+function ReviewButton({
+  disabled = false,
+  label,
+  onClick,
+}: {
+  disabled?: boolean;
+  label: string;
+  onClick: () => void;
+}) {
   return (
-    <button className="trip-action" onClick={onClick} type="button">
+    <button
+      className="trip-action disabled:cursor-not-allowed disabled:opacity-50"
+      disabled={disabled}
+      onClick={onClick}
+      type="button"
+    >
       {label}
     </button>
   );

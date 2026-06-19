@@ -32,7 +32,7 @@ describe("outfits repository", () => {
     const outfit = await createOutfit(
       {
         tripId: "trip:1",
-        ownerTravellerId: "traveller:beck",
+        ownerTravellerId: "traveller:adult",
         name: "Day one outfit",
         outfitType: "day",
         plannedForDay: 1,

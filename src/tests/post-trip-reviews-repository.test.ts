@@ -33,7 +33,7 @@ afterEach(async () => {
 describe("post-trip reviews repository", () => {
   it("creates learnings and completes a trip review", async () => {
     const db = createTestDatabase();
-    const trip = tripRow(["traveller:beck"]);
+    const trip = tripRow(["traveller:adult"]);
     await db.trips.add(trip);
     const review = await getOrCreatePostTripReview(trip.id, db);
 
@@ -136,15 +136,25 @@ describe("post-trip reviews repository", () => {
       },
       db,
     );
+    const targetTemplate = (await db.templates.toArray()).find(
+      (template) => template.active,
+    );
+    if (!targetTemplate) throw new Error("Expected an active template fixture.");
 
     await markLearningAlwaysSuggest(learning.id, db);
-    await promoteLearningToTemplate(learning.id, trip, db);
+    const itemCountBeforeBlockedPromotion = await db.templateItems.count();
+    await expect(promoteLearningToTemplate(learning.id, "", db)).rejects.toThrow(
+      "Choose an active template",
+    );
+    expect(await db.templateItems.count()).toBe(itemCountBeforeBlockedPromotion);
+
+    await promoteLearningToTemplate(learning.id, targetTemplate.id, db);
 
     expect(await db.reviewLearnings.get(learning.id)).toMatchObject({
       actionTaken: "promoted-to-template",
     });
-    expect((await db.templateItems.toArray()).map((item) => item.name)).toContain(
-      "Formal shawl",
+    expect(await db.templateItems.where("templateId").equals(targetTemplate.id).toArray()).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "Formal shawl" })]),
     );
   });
 });
