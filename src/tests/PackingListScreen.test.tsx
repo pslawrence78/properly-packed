@@ -123,6 +123,31 @@ describe("PackingListScreen", () => {
       "/trips/new",
     );
   });
+
+  it("reads dashboard filters, shows them, and clears them", async () => {
+    const user = userEvent.setup();
+    mocks.items = [
+      { ...packingItem("traveller", "Power bank", "traveller:alex"), status: "to-charge" },
+      { ...packingItem("traveller", "Packed cable", "traveller:alex"), status: "packed" },
+    ];
+    renderScreen("/trips/trip:1/pack?owner=traveller:alex&status=to-charge&outstanding=true");
+
+    expect(await screen.findByRole("heading", { name: "Power bank" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Packed cable" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Alex/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Status")).toHaveValue("to-charge");
+    expect(screen.getByLabelText("Outstanding items only")).toBeChecked();
+
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(screen.getByRole("heading", { name: "Packed cable" })).toBeInTheDocument();
+  });
+
+  it("ignores an invalid status deep link", async () => {
+    mocks.items = [packingItem("shared", "Travel insurance")];
+    renderScreen("/trips/trip:1/pack?status=not-a-real-status");
+    expect(await screen.findByRole("heading", { name: "Travel insurance" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Status")).toHaveValue("");
+  });
 });
 
 function renderScreen(path = "/trips/trip:1/pack") {

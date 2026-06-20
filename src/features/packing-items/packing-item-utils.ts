@@ -40,6 +40,7 @@ export type PackingFilters = {
   priority: string;
   bagId: string;
   search: string;
+  outstanding?: boolean;
 };
 
 export type PackingProgress = {
@@ -53,6 +54,23 @@ export type QuickAddOwnershipDefault = {
   ownershipScope: ItemOwnershipScope;
   ownerTravellerId?: string;
 };
+
+export function packingFiltersFromSearchParams(params: URLSearchParams): PackingFilters {
+  const statuses = new Set(packingStatusOptions.map(({ value }) => value));
+  const priorities = new Set(packingPriorityOptions.map(({ value }) => value));
+  const status = params.get("status") ?? "";
+  const priority = params.get("priority") ?? "";
+
+  return {
+    ownerTravellerId: params.get("owner") ?? "",
+    category: params.get("category") ?? "",
+    status: statuses.has(status as PackingStatus) ? status : "",
+    priority: priorities.has(priority as PackingPriority) ? priority : "",
+    bagId: params.get("bag") ?? "",
+    search: params.get("search") ?? "",
+    outstanding: params.get("outstanding") === "true",
+  };
+}
 
 export function getQuickAddOwnershipDefault(
   ownerFilter: string,
@@ -116,6 +134,10 @@ export function filterPackingItems(
     }
 
     if (filters.priority && item.priority !== filters.priority) {
+      return false;
+    }
+
+    if (filters.outstanding && ["packed", "not-taking"].includes(item.status)) {
       return false;
     }
 

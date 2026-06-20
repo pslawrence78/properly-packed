@@ -51,8 +51,8 @@ export const appRoutes: AppRoute[] = [
     path: "/",
     title: "Dashboard",
     description:
-      "Shows the active trip and local trip summary for the current tranche.",
-    comingLater: ["Packing readiness", "Outstanding actions", "Family progress"],
+      "Shows active-trip readiness, outstanding actions and packing progress.",
+    comingLater: ["Calendar reminders", "Cross-device readiness"],
     element: <DashboardScreen />,
   },
   {

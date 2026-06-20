@@ -4,18 +4,21 @@ Family travel packing, without the forgotten bits.
 
 ## Current Release
 
-Version 0.25.0 delivers Tranche 27: Trip Starter Pack Generation. Each trip can
-now preview matching templates, Useful Extras and Gadget Bundles in one grouped,
-selective flow. Suggestions explain why they appear, recognise existing items,
-skip duplicates at mutation time, preserve source tracking and create supported
-gadget tasks. IndexedDB remains v4, export schema remains v2 and seed version
-remains v0.11.0.
+Version 0.26.0 delivers Tranche 28: Trip Readiness Dashboard and Action Views.
+The active trip dashboard now derives overall, essential, action, traveller and
+bag readiness; reports open pre-trip tasks and items without bags; and links each
+metric to a visible filtered packing-list view. Starter Pack suggestions appear
+only when the list is empty or new suggestions remain. IndexedDB remains v4,
+export schema remains v2 and seed version remains v0.11.0.
 
-Tranche 27A validates and stabilises that workflow. It adds cross-source
-de-duplication and generated-data backup round-trip coverage, graceful
-no-traveller/not-found states, clearer selected cards, a mobile-safe sticky result
-and action area, and a `/library/gadget-bundles` compatibility route. Validation:
-typecheck, 148 tests across 46 files, production build, and configured route sweep.
+Dashboard deep links support owner, bag, status, priority, no-bag and outstanding
+filters. Unknown status or priority query values are ignored safely, and active
+filters can be cleared from the Pack screen.
+
+Validation for Tranche 28: typecheck passed, 156 tests across 47 files passed,
+the production build passed, and the configured route sweep returned HTTP 200
+for all 22 routes. The existing non-failing bundle-size and React Router future
+flag warnings remain.
 
 ## GitHub Pages Deployment
 

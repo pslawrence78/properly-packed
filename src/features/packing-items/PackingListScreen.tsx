@@ -23,6 +23,7 @@ import {
   filterPackingItems,
   getQuickAddOwnershipDefault,
   packingPriorityOptions,
+  packingFiltersFromSearchParams,
   packingStatusOptions,
   SHARED_OWNERSHIP_FILTER,
   type PackingFilters,
@@ -40,14 +41,7 @@ export function PackingListScreen() {
   const [filters, setFilters] = useState<PackingFilters>(emptyPackingFilters);
 
   useEffect(() => {
-    setFilters({
-      ownerTravellerId: searchParams.get("owner") ?? "",
-      category: searchParams.get("category") ?? "",
-      status: searchParams.get("status") ?? "",
-      priority: searchParams.get("priority") ?? "",
-      bagId: searchParams.get("bag") ?? "",
-      search: searchParams.get("search") ?? "",
-    });
+    setFilters(packingFiltersFromSearchParams(searchParams));
   }, [searchParams]);
 
   const packingData = useAsyncData(async () => {
@@ -77,6 +71,27 @@ export function PackingListScreen() {
 
     return { trip, travellers, items, bags, categories };
   }, [tripId, refreshKey]);
+
+  useEffect(() => {
+    if (packingData.state !== "ready") return;
+    const validOwners = new Set([
+      SHARED_OWNERSHIP_FILTER,
+      UNASSIGNED_OWNERSHIP_FILTER,
+      ...packingData.data.travellers.map((traveller) => traveller.id),
+    ]);
+    const validBags = new Set([
+      "__unassigned",
+      ...packingData.data.bags.map((bag) => bag.id),
+    ]);
+    setFilters((current) => ({
+      ...current,
+      ownerTravellerId:
+        current.ownerTravellerId && !validOwners.has(current.ownerTravellerId)
+          ? ""
+          : current.ownerTravellerId,
+      bagId: current.bagId && !validBags.has(current.bagId) ? "" : current.bagId,
+    }));
+  }, [packingData]);
 
   const filteredItems = useMemo(() => {
     if (packingData.state !== "ready") {
@@ -425,6 +440,15 @@ function PackingFiltersPanel({
           ]}
         />
       </div>
+      <label className="mt-4 flex min-h-11 items-center gap-3 rounded-lg bg-cream px-4 text-sm font-medium text-charcoal">
+        <input
+          checked={filters.outstanding}
+          className="h-5 w-5 accent-teal"
+          onChange={(event) => onChange({ ...filters, outstanding: event.target.checked })}
+          type="checkbox"
+        />
+        Outstanding items only
+      </label>
     </section>
   );
 }
@@ -594,5 +618,6 @@ function emptyPackingFilters(): PackingFilters {
     priority: "",
     bagId: "",
     search: "",
+    outstanding: false,
   };
 }

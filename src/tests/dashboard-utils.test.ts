@@ -57,7 +57,8 @@ describe("dashboard readiness utilities", () => {
     });
 
     expect(readiness.essentialsNotPacked).toEqual([]);
-    expect(readiness.canMarkReady).toBe(true);
+    expect(readiness.canMarkReady).toBe(false);
+    expect(readiness.label).toBe("Not started");
   });
 
   it("groups shared items separately from named traveller readiness", () => {
@@ -115,6 +116,47 @@ describe("dashboard readiness utilities", () => {
       toDownload: 1,
       toDecide: 1,
     });
+  });
+
+  it("separates open generated tasks from packing actions", () => {
+    const readiness = buildDashboardReadiness({
+      bags: [], outfitItems: [], outfits: [],
+      packingItems: [{ ...item("item:1", "Camera", "important", "packed", "traveller:beck"), source: "gadget-bundle" }],
+      preTripTasks: [{
+        id: "task:1", tripId: "trip:1", relatedItemId: "item:1", taskName: "Charge camera",
+        taskType: "charge", status: "open", createdAt: "2026-06-16T00:00:00.000Z", updatedAt: "2026-06-16T00:00:00.000Z",
+      }],
+      travellers: [traveller("traveller:beck", "Beck")],
+    });
+
+    expect(readiness.openTaskCount).toBe(1);
+    expect(readiness.label).toBe("Actions outstanding");
+    expect(readiness.canMarkReady).toBe(false);
+  });
+
+  it("reports no-bag and risk slices and ignores archived records", () => {
+    const archived = { ...item("item:old", "Old item", "essential", "needed"), archivedAt: "2026-06-17T00:00:00.000Z" };
+    const risky = { ...item("item:risk", "Medication", "essential", "needed", "traveller:beck"), forgottenRisk: true, flags: ["travel-day"] };
+    const readiness = buildDashboardReadiness({
+      bags: [], outfitItems: [], outfits: [], packingItems: [archived, risky],
+      travellers: [traveller("traveller:beck", "Beck")],
+    });
+
+    expect(readiness.includedItemCount).toBe(1);
+    expect(readiness.itemsWithNoBag).toMatchObject([{ name: "Medication" }]);
+    expect(readiness.travelDayItemsOutstanding).toHaveLength(1);
+    expect(readiness.forgottenRiskItemsOutstanding).toHaveLength(1);
+    expect(readiness.travellerReadiness[0]).toMatchObject({ outstandingCount: 1, essentialOutstandingCount: 1 });
+  });
+
+  it("labels a fully packed trip ready", () => {
+    const readiness = buildDashboardReadiness({
+      bags: [], outfitItems: [], outfits: [],
+      packingItems: [item("item:1", "Passport", "essential", "packed", "traveller:beck")],
+      travellers: [traveller("traveller:beck", "Beck")],
+    });
+    expect(readiness.label).toBe("Ready");
+    expect(readiness.canMarkReady).toBe(true);
   });
 });
 

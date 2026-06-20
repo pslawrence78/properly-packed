@@ -24,15 +24,15 @@ import {
   listOutfitsForTrip,
 } from "../../db/repositories/outfits-repository";
 import { listPackingItemsForTrip } from "../../db/repositories/packing-items-repository";
+import { listPreTripTasksForTrip } from "../../db/repositories/pre-trip-tasks-repository";
+import { previewStarterPack } from "../../db/repositories/starter-pack-repository";
 import { getTrip, listTrips } from "../../db/repositories/trips-repository";
 import { listTravellers } from "../../db/repositories/travellers-repository";
-import { listUsefulExtraSuggestionsForTrip } from "../../db/repositories/useful-extras-repository";
 import type { PackingItem } from "../../db/types";
 import { useAsyncData } from "../../hooks/use-async-data";
 import { buildDashboardReadiness, type DashboardReadiness } from "./dashboard-utils";
 import {
   SHARED_OWNERSHIP_FILTER,
-  UNASSIGNED_OWNERSHIP_FILTER,
 } from "../packing-items/packing-item-utils";
 
 export function DashboardScreen() {
@@ -53,13 +53,13 @@ export function DashboardScreen() {
       };
     }
 
-    const [packingItems, bags, outfits, outfitItems, usefulExtraSuggestions] =
+    const [packingItems, bags, outfits, outfitItems, preTripTasks] =
       await Promise.all([
         listPackingItemsForTrip(activeTrip.id),
         listBagsForTrip(activeTrip.id),
         listOutfitsForTrip(activeTrip.id),
         listOutfitItemsForTrip(activeTrip.id),
-        listUsefulExtraSuggestionsForTrip(activeTrip, travellers),
+        listPreTripTasksForTrip(activeTrip.id),
       ]);
     const includedTravellers = travellers.filter((traveller) =>
       activeTrip.travellerIds.includes(traveller.id),
@@ -69,8 +69,12 @@ export function DashboardScreen() {
       outfitItems,
       outfits,
       packingItems,
+      preTripTasks,
       travellers: includedTravellers,
     });
+    const starterPackSuggestionCount = await previewStarterPack(activeTrip, travellers)
+      .then((preview) => preview.newSuggestionCount)
+      .catch(() => 0);
 
     return {
       activeTrip,
@@ -78,9 +82,7 @@ export function DashboardScreen() {
       packingItems,
       readiness,
       tripCount: trips.length,
-      usefulExtraSuggestionCount: usefulExtraSuggestions.filter(
-        (suggestion) => suggestion.status === "new",
-      ).length,
+      starterPackSuggestionCount,
     };
   }, []);
 
@@ -136,7 +138,7 @@ export function DashboardScreen() {
           packingItems={dashboard.data.packingItems ?? []}
           readiness={dashboard.data.readiness}
           tripCount={dashboard.data.tripCount}
-          usefulExtraSuggestionCount={dashboard.data.usefulExtraSuggestionCount ?? 0}
+          starterPackSuggestionCount={dashboard.data.starterPackSuggestionCount ?? 0}
         />
       ) : null}
     </section>
@@ -148,13 +150,13 @@ function DashboardContent({
   packingItems,
   readiness,
   tripCount,
-  usefulExtraSuggestionCount,
+  starterPackSuggestionCount,
 }: {
   activeTrip: NonNullable<Awaited<ReturnType<typeof getTrip>>>;
   packingItems: PackingItem[];
   readiness: DashboardReadiness;
   tripCount: number;
-  usefulExtraSuggestionCount: number;
+  starterPackSuggestionCount: number;
 }) {
   const missingDependencies = findMissingDependencies(packingItems);
 
@@ -181,8 +183,8 @@ function DashboardContent({
                 <AlertTriangle aria-hidden="true" className="h-4 w-4 text-coral" />
               )}
               {readiness.canMarkReady
-                ? "No essential blockers detected."
-                : "Readiness blockers need attention."}
+                ? "Everything included is packed and actions are complete."
+                : readiness.label}
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-[9.5rem_minmax(0,1fr)] lg:min-w-[24rem]">
@@ -227,14 +229,14 @@ function DashboardContent({
           <DashboardMetric
             label="Essentials not packed"
             tone={readiness.essentialsNotPacked.length > 0 ? "warning" : "success"}
-            to={`/trips/${activeTrip.id}/pack?priority=essential`}
+            to={`/trips/${activeTrip.id}/pack?priority=essential&outstanding=true`}
             value={`${readiness.essentialsNotPacked.length}`}
           />
           <DashboardMetric
-            label="Unassigned items"
-            tone={readiness.unassignedCount > 0 ? "warning" : "success"}
-            to={`/trips/${activeTrip.id}/pack?owner=${UNASSIGNED_OWNERSHIP_FILTER}`}
-            value={`${readiness.unassignedCount}`}
+            label="Items with no bag"
+            tone={readiness.itemsWithNoBag.some((item) => item.status !== "packed") ? "warning" : "success"}
+            to={`/trips/${activeTrip.id}/pack?bag=__unassigned&outstanding=true`}
+            value={`${readiness.itemsWithNoBag.filter((item) => item.status !== "packed").length}`}
           />
         </div>
         <div className="mt-4 h-3 overflow-hidden rounded-full bg-cream">
@@ -250,9 +252,9 @@ function DashboardContent({
           title="Traveller readiness"
           items={readiness.travellerReadiness.map((traveller) => ({
             label: traveller.travellerName,
-            detail: `${traveller.packedCount}/${traveller.packableCount} packed`,
+            detail: formatReadinessDetail(traveller),
             percent: traveller.percentPacked,
-            to: `/trips/${activeTrip.id}/pack?owner=${traveller.travellerId}`,
+            to: `/trips/${activeTrip.id}/pack?owner=${traveller.travellerId}&outstanding=true`,
           }))}
         />
         <ReadinessList
@@ -262,9 +264,9 @@ function DashboardContent({
               ? [
                   {
                     label: readiness.sharedReadiness.travellerName,
-                    detail: `${readiness.sharedReadiness.packedCount}/${readiness.sharedReadiness.packableCount} packed`,
+                    detail: formatReadinessDetail(readiness.sharedReadiness),
                     percent: readiness.sharedReadiness.percentPacked,
-                    to: `/trips/${activeTrip.id}/pack?owner=${SHARED_OWNERSHIP_FILTER}`,
+                    to: `/trips/${activeTrip.id}/pack?owner=${SHARED_OWNERSHIP_FILTER}&outstanding=true`,
                   },
                 ]
               : []
@@ -274,11 +276,11 @@ function DashboardContent({
           title="Bag readiness"
           items={readiness.bagReadiness.map((bag) => ({
             label: bag.bagName,
-            detail: `${bag.packedCount}/${bag.packableCount} packed`,
+            detail: `${formatReadinessDetail(bag)}${bag.isHandLuggage ? " · Hand luggage" : ""}${bag.isTravelDay ? " · Travel day" : ""}${bag.isCruiseEmbarkation ? " · Embarkation" : ""}`,
             percent: bag.percentPacked,
             to: bag.bagId
-              ? `/trips/${activeTrip.id}/pack?bag=${bag.bagId}`
-              : `/trips/${activeTrip.id}/pack?bag=__unassigned`,
+              ? `/trips/${activeTrip.id}/pack?bag=${bag.bagId}&outstanding=true`
+              : `/trips/${activeTrip.id}/pack?bag=__unassigned&outstanding=true`,
           }))}
         />
       </section>
@@ -321,6 +323,12 @@ function DashboardContent({
 
       <section className="grid gap-4 lg:grid-cols-3">
         <DashboardMetric
+          label="Open tasks"
+          tone={readiness.openTaskCount > 0 ? "warning" : "success"}
+          to={`/trips/${activeTrip.id}/gadgets`}
+          value={`${readiness.openTaskCount}`}
+        />
+        <DashboardMetric
           label="Missing dependencies"
           tone={readiness.missingDependencyCount > 0 ? "warning" : "default"}
           to={`/trips/${activeTrip.id}/gadgets`}
@@ -333,12 +341,28 @@ function DashboardContent({
           value={`${readiness.outfitSummary.packedCount}/${readiness.outfitSummary.outfitCount}`}
         />
         <DashboardMetric
-          label="Useful extras"
+          label="Starter Pack suggestions"
           tone="success"
-          to={`/trips/${activeTrip.id}/templates`}
-          value={`${usefulExtraSuggestionCount}`}
+          to={`/trips/${activeTrip.id}/starter-pack`}
+          value={`${starterPackSuggestionCount}`}
         />
       </section>
+
+      {packingItems.length === 0 || starterPackSuggestionCount > 0 ? (
+        <section className="rounded-lg border border-teal/20 bg-tealSoft/45 p-5 shadow-soft sm:p-6">
+          <h2 className="text-lg font-semibold text-charcoal">
+            {packingItems.length === 0 ? "Build your packing list" : "Trip suggestions are available"}
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-charcoal/70">
+            {packingItems.length === 0
+              ? "Start with a tailored Starter Pack, then adjust it for this trip."
+              : `${starterPackSuggestionCount} new ${starterPackSuggestionCount === 1 ? "suggestion is" : "suggestions are"} ready to review.`}
+          </p>
+          <Link className="trip-action mt-4" to={`/trips/${activeTrip.id}/starter-pack`}>
+            {packingItems.length === 0 ? "Build Starter Pack" : "Review trip suggestions"}
+          </Link>
+        </section>
+      ) : null}
 
       {readiness.essentialsNotPacked.length > 0 ||
       readiness.unassignedEssentialItems.length > 0 ||
@@ -369,6 +393,18 @@ function DashboardContent({
       ) : null}
     </div>
   );
+}
+
+function formatReadinessDetail(item: {
+  essentialOutstandingCount: number;
+  outstandingCount: number;
+  packedCount: number;
+  packableCount: number;
+}) {
+  const essential = item.essentialOutstandingCount > 0
+    ? ` · ${item.essentialOutstandingCount} essential`
+    : "";
+  return `${item.packedCount}/${item.packableCount} packed · ${item.outstandingCount} left${essential}`;
 }
 
 function ReadinessList({
