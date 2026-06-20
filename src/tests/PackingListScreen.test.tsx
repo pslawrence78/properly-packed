@@ -59,6 +59,10 @@ describe("PackingListScreen", () => {
 
     expect(await screen.findByRole("heading", { name: "No packing items yet" })).toBeInTheDocument();
     expect(screen.getByText(/assign each item to a traveller, mark it as shared/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Review suggestions" })).toHaveAttribute(
+      "href",
+      "/trips/trip:1/starter-pack",
+    );
 
     await user.type(screen.getByLabelText("Item name"), "Passport");
     await user.click(screen.getByRole("button", { name: "Add" }));

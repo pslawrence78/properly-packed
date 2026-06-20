@@ -84,8 +84,6 @@ export function StarterPackScreen() {
             </div>
           </div>
 
-          {message ? <div className="rounded-lg border border-teal/30 bg-teal/10 px-4 py-3 text-sm font-semibold text-charcoal">{message}</div> : null}
-
           <section className="rounded-lg border border-charcoal/10 bg-paper p-5 shadow-soft sm:p-6">
             <h2 className="text-xl font-semibold text-charcoal">Suggested for this trip</h2>
             <div className="mt-4 grid grid-cols-3 gap-3">
@@ -94,6 +92,13 @@ export function StarterPackScreen() {
               <Metric label="Included" value={starterData.data.alreadyIncluded.length} />
             </div>
           </section>
+
+          {starterData.data.travellers.length === 0 ? (
+            <div className="rounded-lg border border-clay/25 bg-clay/10 px-4 py-3 text-sm leading-6 text-charcoal/75">
+              This trip has no travellers yet. Shared suggestions can still be applied;
+              traveller-owned gadget bundles will wait until someone is added.
+            </div>
+          ) : null}
 
           <SuggestionSection title="Matching templates" empty="No templates match this trip.">
             {starterData.data.templates.map((preview) => (
@@ -128,7 +133,7 @@ export function StarterPackScreen() {
               const defaultSelected = preview.suggestions.some((item) => !item.optional && item.status === "new");
               const ownerId = owners[preview.bundle.id] ?? preview.ownerTraveller?.id ?? "";
               return (
-                <article className="rounded-lg border border-charcoal/10 bg-cream p-4" key={preview.bundle.id}>
+                <article className={`min-w-0 rounded-lg border p-4 ${selected(bundles, preview.bundle.id, defaultSelected) ? "border-teal/35 bg-teal/5" : "border-charcoal/10 bg-cream"}`} key={preview.bundle.id}>
                   <label className="flex min-h-11 gap-3">
                     <input
                       checked={selected(bundles, preview.bundle.id, defaultSelected)}
@@ -137,8 +142,9 @@ export function StarterPackScreen() {
                       onChange={(event) => setBundles((current) => ({ ...current, [preview.bundle.id]: event.target.checked }))}
                       type="checkbox"
                     />
-                    <span><span className="font-semibold text-charcoal">{preview.bundle.name}</span><span className="block text-sm text-charcoal/65">{preview.reason}</span></span>
+                    <span className="min-w-0"><span className="break-words font-semibold text-charcoal">{preview.bundle.name}</span><span className="block break-words text-sm text-charcoal/65">{preview.reason}</span></span>
                   </label>
+                  {!ownerId ? <p className="mt-2 text-xs leading-5 text-clay">Add or choose a traveller before this bundle can be applied.</p> : null}
                   <label className="mt-3 block text-sm font-medium text-charcoal">Owner
                     <select className="mt-1 min-h-11 w-full rounded-lg border border-charcoal/15 bg-paper px-3" value={ownerId} onChange={(event) => setOwners((current) => ({ ...current, [preview.bundle.id]: event.target.value }))}>
                       <option value="">Choose a traveller</option>
@@ -164,9 +170,10 @@ export function StarterPackScreen() {
             {starterData.data.alreadyIncluded.map((item) => <div className="rounded-lg bg-cream px-4 py-3 text-sm" key={item.id}><span className="font-semibold">{item.name}</span><span className="block text-charcoal/60">Already in this trip · {item.source}</span></div>)}
           </SuggestionSection>
 
-          <div className="sticky bottom-20 z-10 flex flex-wrap gap-3 rounded-lg border border-charcoal/10 bg-paper/95 p-4 shadow-soft backdrop-blur md:bottom-4">
-            <button className="min-h-12 flex-1 rounded-lg bg-slateAccent px-5 font-semibold text-cream" onClick={() => void applySelected(starterData.data)} type="button">Apply selected</button>
-            <Link className="trip-action min-h-12" to={`/trips/${starterData.data.trip.id}`}>Cancel</Link>
+          <div className="sticky bottom-20 z-10 flex flex-col gap-3 rounded-lg border border-charcoal/10 bg-paper/95 p-4 shadow-soft backdrop-blur sm:flex-row sm:flex-wrap md:bottom-4">
+            {message ? <p aria-live="polite" className="w-full rounded-lg bg-teal/10 px-3 py-2 text-sm font-semibold leading-6 text-charcoal">{message}</p> : null}
+            <button className="min-h-12 w-full flex-1 rounded-lg bg-slateAccent px-5 font-semibold text-cream sm:w-auto" onClick={() => void applySelected(starterData.data)} type="button">Apply selected</button>
+            <Link className="trip-action min-h-12 w-full justify-center sm:w-auto" to={`/trips/${starterData.data.trip.id}`}>Cancel</Link>
           </div>
         </>
       ) : null}
@@ -180,7 +187,7 @@ function SuggestionSection({ children, empty, title }: { children: React.ReactNo
 }
 
 function ChoiceCard({ checked, disabled, name, onChange, reason, summary }: { checked: boolean; disabled: boolean; name: string; onChange: (checked: boolean) => void; reason: string; summary: string }) {
-  return <label className="flex min-h-14 gap-3 rounded-lg border border-charcoal/10 bg-cream p-4"><input checked={checked} className="mt-1 h-5 w-5 shrink-0 accent-teal" disabled={disabled} onChange={(event) => onChange(event.target.checked)} type="checkbox" /><span><span className="font-semibold text-charcoal">{name}</span><span className="block text-sm leading-6 text-charcoal/65">{reason}</span><span className="block text-xs text-charcoal/55">{summary}</span></span></label>;
+  return <label className={`flex min-h-14 min-w-0 gap-3 rounded-lg border p-4 ${checked ? "border-teal/35 bg-teal/5" : "border-charcoal/10 bg-cream"}`}><input checked={checked} className="mt-1 h-5 w-5 shrink-0 accent-teal" disabled={disabled} onChange={(event) => onChange(event.target.checked)} type="checkbox" /><span className="min-w-0"><span className="break-words font-semibold text-charcoal">{name}</span><span className="block break-words text-sm leading-6 text-charcoal/65">{reason}</span><span className="block break-words text-xs text-charcoal/55">{summary}</span></span></label>;
 }
 
 function Metric({ label, value }: { label: string; value: number }) { return <div className="rounded-lg bg-cream p-3 text-center"><p className="text-2xl font-bold text-charcoal">{value}</p><p className="text-xs text-charcoal/60">{label}</p></div>; }

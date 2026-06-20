@@ -11,6 +11,12 @@ skip duplicates at mutation time, preserve source tracking and create supported
 gadget tasks. IndexedDB remains v4, export schema remains v2 and seed version
 remains v0.11.0.
 
+Tranche 27A validates and stabilises that workflow. It adds cross-source
+de-duplication and generated-data backup round-trip coverage, graceful
+no-traveller/not-found states, clearer selected cards, a mobile-safe sticky result
+and action area, and a `/library/gadget-bundles` compatibility route. Validation:
+typecheck, 148 tests across 46 files, production build, and configured route sweep.
+
 ## GitHub Pages Deployment
 
 Properly Packed is configured as a Vite project-site deployment under:

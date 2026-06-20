@@ -175,6 +175,13 @@ export const appRoutes: AppRoute[] = [
     element: <GadgetLibraryScreen />,
   },
   {
+    path: "/library/gadget-bundles",
+    title: "Gadget Bundles",
+    description: "Reusable gadget, charger, cable and download kits.",
+    comingLater: ["Bundle editor", "Device inventory", "Dependency inference"],
+    element: <GadgetLibraryScreen />,
+  },
+  {
     path: "/settings/contexts",
     title: "Trip Contexts",
     description: "Manage reusable trip context options.",

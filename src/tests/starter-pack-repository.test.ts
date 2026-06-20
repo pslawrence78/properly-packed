@@ -116,6 +116,104 @@ describe("trip starter pack", () => {
     expect(starterPackSummary(0, 4, 0)).toContain("already present");
     expect(starterPackSummary(0, 0, 0)).toBe("No suggestions were selected.");
   });
+
+  it("skips overlaps between templates, useful extras and gadget bundles", async () => {
+    const db = createTestDatabase();
+    await applyInitialSeed(db);
+    const owner = traveller("traveller:owner", "Owner", "adult");
+    const trip = tripRow("theme-park", [owner]);
+    const now = "2026-06-20T00:00:00.000Z";
+    await db.travellers.add(owner);
+    await db.trips.add(trip);
+    await db.templates.add({
+      id: "template:overlap",
+      name: "Overlap template",
+      applicableTripTypes: ["theme-park"],
+      applicableTravellers: ["adult"],
+      applicableContexts: [],
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.templateItems.bulkAdd([
+      {
+        id: "template-item:shared-overlap",
+        templateId: "template:overlap",
+        name: "Overlap cable",
+        ownerType: "shared",
+        category: "electronics",
+        quantity: 1,
+        priority: "important",
+        flags: [],
+        conditionRules: [],
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: "template-item:owner-overlap",
+        templateId: "template:overlap",
+        name: "Overlap power brick",
+        ownerType: "selected-adult",
+        category: "electronics",
+        quantity: 1,
+        priority: "important",
+        flags: [],
+        conditionRules: [],
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+    await db.usefulExtras.add({
+      id: "extra:overlap",
+      name: "Overlap cable",
+      category: "electronics",
+      applicableTripTypes: ["theme-park"],
+      applicableContexts: [],
+      defaultPriority: "useful",
+      alwaysSuggest: false,
+      neverSuggest: false,
+      forgottenBefore: false,
+      invaluableBefore: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.gadgetBundles.add({
+      id: "bundle:overlap",
+      name: "Overlap bundle",
+      applicableTripTypes: ["theme-park"],
+      applicableContexts: [],
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.gadgetBundleItems.add({
+      id: "bundle-item:overlap",
+      bundleId: "bundle:overlap",
+      name: "Overlap power brick",
+      category: "electronics",
+      required: true,
+      quantity: 1,
+      flags: [],
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const result = await applyStarterPack(
+      {
+        trip,
+        travellers: [owner],
+        templateIds: ["template:overlap"],
+        usefulExtraIds: ["extra:overlap"],
+        gadgetBundles: [{ bundleId: "bundle:overlap", ownerTravellerId: owner.id }],
+      },
+      db,
+    );
+    const overlapItems = (await db.packingItems.where("tripId").equals(trip.id).toArray())
+      .filter((item) => item.name.startsWith("Overlap"));
+
+    expect(overlapItems).toHaveLength(2);
+    expect(overlapItems.every((item) => item.source === "template")).toBe(true);
+    expect(result.duplicatesSkipped).toBe(2);
+  });
 });
 
 function traveller(id: string, name: string, travellerType: Traveller["travellerType"]): Traveller {

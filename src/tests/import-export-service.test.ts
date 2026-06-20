@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { ProperlyPackedDatabase } from "../db";
+import { applyStarterPack } from "../db/repositories/starter-pack-repository";
+import { applyInitialSeed } from "../db/seed";
 import type { Traveller, Trip } from "../db/types";
 import type { ProperlyPackedExport } from "../features/import-export";
 import { APP_VERSION } from "../lib/app-version";
@@ -313,6 +315,50 @@ describe("import and export service", () => {
       { id: "trip:new", name: "Imported trip" },
     ]);
     expect(await targetDb.tripItineraryDays.count()).toBe(0);
+  });
+
+  it("round-trips starter-pack items, source tracking and gadget tasks", async () => {
+    const sourceDb = createTestDatabase();
+    const targetDb = createTestDatabase();
+    await applyInitialSeed(sourceDb);
+    const owner = traveller("traveller:adult", "Adult traveller");
+    const starterTrip = {
+      ...trip("trip:starter", "Theme park trip"),
+      tripType: "theme-park" as const,
+      travellerIds: [owner.id],
+      activityContextIds: ["seed:context-option:activity:theme-park"],
+    };
+    await sourceDb.travellers.add(owner);
+    await sourceDb.trips.add(starterTrip);
+
+    const applied = await applyStarterPack(
+      {
+        trip: starterTrip,
+        travellers: [owner],
+        templateIds: ["seed:template:theme-park"],
+        usefulExtraIds: ["seed:useful-extra:theme-park:cooling-towel"],
+        gadgetBundles: [{
+          bundleId: "seed:gadget-bundle:theme-park-battery-kit",
+          ownerTravellerId: owner.id,
+        }],
+      },
+      sourceDb,
+    );
+    const exportData = await generateExportData(sourceDb);
+    await replaceDataFromExport(exportData, targetDb);
+
+    const restoredItems = await targetDb.packingItems
+      .where("tripId")
+      .equals(starterTrip.id)
+      .toArray();
+    expect(applied.itemsAdded).toBeGreaterThan(0);
+    expect(applied.tasksCreated).toBeGreaterThan(0);
+    expect(restoredItems.every((item) => item.sourceId)).toBe(true);
+    expect(new Set(restoredItems.map((item) => item.source))).toEqual(
+      new Set(["template", "useful-extra", "gadget-bundle"]),
+    );
+    expect(await targetDb.preTripTasks.count()).toBe(applied.tasksCreated);
+    expect(exportData).not.toHaveProperty("starterPackPreview");
   });
 
   it("resets local data and restores foundation seed data", async () => {

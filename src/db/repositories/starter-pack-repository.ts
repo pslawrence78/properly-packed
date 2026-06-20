@@ -161,6 +161,9 @@ export async function applyStarterPack(
   input: ApplyStarterPackInput,
   db: ProperlyPackedDatabase = appDb,
 ): Promise<ApplyStarterPackResult> {
+  // Each source rebuilds its preview immediately before writing. Counts can differ
+  // from the earlier combined preview when another selected source adds an
+  // overlapping item first; this mutation-time check is the final safety gate.
   let itemsAdded = 0;
   let tasksCreated = 0;
   let duplicatesSkipped = 0;

@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   applyStarterPack: vi.fn().mockResolvedValue({
@@ -30,6 +30,8 @@ vi.mock("../db/repositories/starter-pack-repository", () => ({
 import { StarterPackScreen } from "../features/starter-pack";
 
 describe("StarterPackScreen", () => {
+  beforeEach(() => vi.clearAllMocks());
+
   it("renders grouped suggestions, supports selection and applies only selected sources", async () => {
     mocks.getTrip.mockResolvedValue(trip);
     mocks.listTravellers.mockResolvedValue([adult]);
@@ -63,7 +65,53 @@ describe("StarterPackScreen", () => {
     );
     expect(await screen.findByText("4 items added. 1 duplicate skipped.")).toBeInTheDocument();
   });
+
+  it("shows a useful not-found state for an unknown trip", async () => {
+    mocks.getTrip.mockResolvedValue(undefined);
+    mocks.listTravellers.mockResolvedValue([]);
+    renderStarterPack();
+
+    expect(await screen.findByRole("heading", { name: "Trip not found" })).toBeInTheDocument();
+    expect(mocks.previewStarterPack).not.toHaveBeenCalled();
+  });
+
+  it("does not generate suggestions for an archived trip", async () => {
+    mocks.getTrip.mockResolvedValue({ ...trip, archivedAt: "2026-06-20" });
+    mocks.listTravellers.mockResolvedValue([adult]);
+    renderStarterPack();
+
+    expect(await screen.findByRole("heading", { name: "Trip not found" })).toBeInTheDocument();
+    expect(mocks.previewStarterPack).not.toHaveBeenCalled();
+  });
+
+  it("gracefully previews a trip with no travellers", async () => {
+    mocks.getTrip.mockResolvedValue({ ...trip, travellerIds: [] });
+    mocks.listTravellers.mockResolvedValue([]);
+    mocks.previewStarterPack.mockResolvedValue({
+      ...preview,
+      trip: { ...trip, travellerIds: [] },
+      travellers: [],
+      gadgetBundles: preview.gadgetBundles.map((bundle) => ({
+        ...bundle,
+        ownerTraveller: undefined,
+      })),
+    });
+    renderStarterPack();
+
+    expect(await screen.findByText(/This trip has no travellers yet/)).toBeInTheDocument();
+    expect(screen.getByText(/Add or choose a traveller before this bundle/)).toBeInTheDocument();
+  });
 });
+
+function renderStarterPack() {
+  return render(
+    <MemoryRouter initialEntries={["/trips/trip:1/starter-pack"]}>
+      <Routes>
+        <Route path="/trips/:tripId/starter-pack" element={<StarterPackScreen />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
 
 const adult = {
   id: "traveller:adult",
