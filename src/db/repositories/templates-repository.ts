@@ -271,15 +271,16 @@ export function templateAppliesToTrip(
   trip: Trip,
   contextOptions: ContextOption[] = [],
 ) {
-  const tripTypeMatch =
-    template.applicableTripTypes.length === 0 ||
-    template.applicableTripTypes.includes(trip.tripType);
-  const contextMatch =
-    template.applicableContexts.length === 0 ||
-    template.applicableContexts.some((context) =>
+  const tripTypeMatch = template.applicableTripTypes.includes(trip.tripType);
+  const contextMatch = template.applicableContexts.some((context) =>
       tripMatchesContext(trip, context, contextOptions),
     );
-  return template.active && tripTypeMatch && contextMatch;
+  return (
+    template.active &&
+    ((template.applicableTripTypes.length === 0 && template.applicableContexts.length === 0) ||
+      tripTypeMatch ||
+      contextMatch)
+  );
 }
 
 export function rulesApply(

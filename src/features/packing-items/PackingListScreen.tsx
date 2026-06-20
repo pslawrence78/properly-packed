@@ -161,9 +161,9 @@ export function PackingListScreen() {
                 </Link>
                 <Link
                   className="trip-action"
-                  to={`/trips/${packingData.data.trip.id}/templates`}
+                  to={`/trips/${packingData.data.trip.id}/starter-pack`}
                 >
-                  Templates
+                  Review suggestions
                 </Link>
               </div>
             </div>

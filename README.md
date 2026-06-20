@@ -4,11 +4,12 @@ Family travel packing, without the forgotten bits.
 
 ## Current Release
 
-Version 0.24.0 delivers Tranche 26: Curated Seed Library Expansion. The built-in
-library now includes 57 Useful Extras across practical travel contexts, 10 gadget
-bundles with 68 required/optional items, and 72 suggestions across nine trip
-templates. Repeat seeding remains idempotent and now explicitly preserves records
-marked as user-modified. IndexedDB remains v4 and the export schema remains v2.
+Version 0.25.0 delivers Tranche 27: Trip Starter Pack Generation. Each trip can
+now preview matching templates, Useful Extras and Gadget Bundles in one grouped,
+selective flow. Suggestions explain why they appear, recognise existing items,
+skip duplicates at mutation time, preserve source tracking and create supported
+gadget tasks. IndexedDB remains v4, export schema remains v2 and seed version
+remains v0.11.0.
 
 ## GitHub Pages Deployment
 

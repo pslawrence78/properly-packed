@@ -242,16 +242,15 @@ export function gadgetBundleAppliesToTrip(
   trip: Trip,
   contextOptions: import("../types").ContextOption[] = [],
 ) {
-  const tripTypeMatch =
-    bundle.applicableTripTypes.length === 0 ||
-    bundle.applicableTripTypes.includes(trip.tripType);
-  const contextMatch =
-    bundle.applicableContexts.length === 0 ||
-    bundle.applicableContexts.some((context) =>
+  const tripTypeMatch = bundle.applicableTripTypes.includes(trip.tripType);
+  const contextMatch = bundle.applicableContexts.some((context) =>
       tripMatchesContext(trip, context, contextOptions),
     );
-
-  return tripTypeMatch && contextMatch;
+  return (
+    (bundle.applicableTripTypes.length === 0 && bundle.applicableContexts.length === 0) ||
+    tripTypeMatch ||
+    contextMatch
+  );
 }
 
 export function listItemsToCharge(items: PackingItem[]) {

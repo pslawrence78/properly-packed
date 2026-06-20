@@ -20,6 +20,7 @@ import { OutfitPlannerScreen } from "../features/outfits";
 import { PackingListScreen } from "../features/packing-items/PackingListScreen";
 import { PostTripReviewScreen } from "../features/reviews";
 import { SettingsScreen } from "../features/settings/SettingsScreen";
+import { StarterPackScreen } from "../features/starter-pack";
 import { ContextsSettingsScreen } from "../features/settings/ContextsSettingsScreen";
 import { TemplateLibraryScreen, TripTemplatesScreen } from "../features/templates";
 import { CreateTripScreen } from "../features/trips/CreateTripScreen";
@@ -109,6 +110,13 @@ export const appRoutes: AppRoute[] = [
     description: "Preview and apply trip packing suggestions.",
     comingLater: ["Template editor", "Rule builder", "Single-trip import"],
     element: <TripTemplatesScreen />,
+  },
+  {
+    path: "/trips/:tripId/starter-pack",
+    title: "Trip Starter Pack",
+    description: "Review and selectively apply matching trip suggestions.",
+    comingLater: ["Custom rule builder", "Cloud recommendations"],
+    element: <StarterPackScreen />,
   },
   {
     path: "/trips/:tripId/bags",

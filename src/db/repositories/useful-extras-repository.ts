@@ -119,16 +119,15 @@ export function extraAppliesToTrip(
     return true;
   }
 
-  const tripTypeMatch =
-    extra.applicableTripTypes.length === 0 ||
-    extra.applicableTripTypes.includes(trip.tripType);
-  const contextMatch =
-    extra.applicableContexts.length === 0 ||
-    extra.applicableContexts.some((context) =>
+  const tripTypeMatch = extra.applicableTripTypes.includes(trip.tripType);
+  const contextMatch = extra.applicableContexts.some((context) =>
       tripMatchesContext(trip, context, contextOptions),
     );
-
-  return tripTypeMatch && contextMatch;
+  return (
+    (extra.applicableTripTypes.length === 0 && extra.applicableContexts.length === 0) ||
+    tripTypeMatch ||
+    contextMatch
+  );
 }
 
 function createId(prefix: string) {

@@ -14,10 +14,16 @@ export function tripMatchesContext(
   const valueSlug = normalisedValue.replace(/\s+/g, "-");
   if (
     selectedOptions.some(
-      (option) =>
-        normaliseContextLabel(option.label) === normalisedValue ||
+      (option) => {
+        const optionLabel = normaliseContextLabel(option.label);
+        return (
+        optionLabel === normalisedValue ||
+        optionLabel.startsWith(`${normalisedValue} `) ||
+        optionLabel.endsWith(` ${normalisedValue}`) ||
         option.seedKey?.endsWith(`:${valueSlug}`) ||
-        option.seedKey?.endsWith(`-${valueSlug}`),
+        option.seedKey?.endsWith(`-${valueSlug}`)
+        );
+      },
     )
   ) {
     return true;

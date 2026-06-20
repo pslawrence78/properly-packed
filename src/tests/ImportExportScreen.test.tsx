@@ -47,7 +47,7 @@ describe("ImportExportScreen", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("v0.24.0")).toBeInTheDocument();
+    expect(screen.getByText("v0.25.0")).toBeInTheDocument();
     expect(screen.getByText("Database version")).toBeInTheDocument();
     expect(screen.getByText("v4")).toBeInTheDocument();
     expect(screen.getByText("Export schema")).toBeInTheDocument();

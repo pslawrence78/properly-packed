@@ -191,6 +191,12 @@ export function TripOverviewScreen() {
                 Packing list
               </Link>
               <Link
+                className="min-h-11 rounded-lg bg-slateAccent px-4 py-3 text-sm font-semibold text-cream shadow-soft"
+                to={`/trips/${tripData.data.trip.id}/starter-pack`}
+              >
+                Build starter pack
+              </Link>
+              <Link
                 className="trip-action"
                 to={`/trips/${tripData.data.trip.id}/templates`}
               >
