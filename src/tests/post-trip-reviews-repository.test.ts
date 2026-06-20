@@ -3,11 +3,14 @@ import { ProperlyPackedDatabase } from "../db";
 import {
   completePostTripReview,
   createReviewLearning,
+  createLearningFromPackingItem,
+  addLearningSuggestionToTrip,
   getOrCreatePostTripReview,
   markLearningAlwaysSuggest,
   markLearningNeverSuggest,
   promoteLearningToTemplate,
   promoteLearningToUsefulExtra,
+  listLearningSuggestionsForTrip,
 } from "../db/repositories/post-trip-reviews-repository";
 import { listUsefulExtraSuggestionsForTrip } from "../db/repositories/useful-extras-repository";
 import { applyInitialSeed } from "../db/seed";
@@ -156,6 +159,41 @@ describe("post-trip reviews repository", () => {
     expect(await db.templateItems.where("templateId").equals(targetTemplate.id).toArray()).toEqual(
       expect.arrayContaining([expect.objectContaining({ name: "Formal shawl" })]),
     );
+  });
+
+  it("preserves source and wrong-bag snapshots", async () => {
+    const db = createTestDatabase();
+    const trip = tripRow([], "trip:bags");
+    await db.trips.add(trip);
+    const now = "2026-06-16T00:00:00.000Z";
+    const originalBag = { id: "bag:case", tripId: trip.id, name: "Main case", bagType: "suitcase" as const, isHandLuggage: false, isTravelDay: false, isCruiseEmbarkation: false, createdAt: now, updatedAt: now };
+    const betterBag = { ...originalBag, id: "bag:cabin", name: "Cabin bag", bagType: "cabin-bag" as const, isHandLuggage: true };
+    await db.bags.bulkAdd([originalBag, betterBag]);
+    const item = { id: "item:charger", tripId: trip.id, name: "Phone charger", ownershipScope: "shared" as const, category: "gadgets", quantity: 1, priority: "important" as const, status: "packed" as const, bagId: originalBag.id, flags: [], dependencyItemIds: [], source: "manual" as const, forgottenRisk: false, createdAt: now, updatedAt: now };
+    await db.packingItems.add(item);
+    const review = await getOrCreatePostTripReview(trip.id, db);
+
+    const learning = await createLearningFromPackingItem(review.id, item, "packed-in-wrong-bag", trip, db, betterBag);
+
+    expect(learning).toMatchObject({ sourceTripId: trip.id, sourcePackingItemId: item.id, originalBagName: "Main case", suggestedBagName: "Cabin bag" });
+  });
+
+  it("surfaces matching learning explicitly and adds buy-next-time as to-buy", async () => {
+    const db = createTestDatabase();
+    const sourceTrip = tripRow([], "trip:source");
+    const futureTrip = tripRow([], "trip:future");
+    await db.trips.bulkAdd([sourceTrip, futureTrip]);
+    const review = await getOrCreatePostTripReview(sourceTrip.id, db);
+    const learning = await createReviewLearning(review.id, { itemName: "Reef shoes", category: "footwear", learningType: "buy-for-next-time", appliesToTripTypes: ["cruise"] }, db);
+
+    const suggestions = await listLearningSuggestionsForTrip(futureTrip, db);
+    expect(suggestions).toEqual([expect.objectContaining({ learning: expect.objectContaining({ itemName: "Reef shoes" }), packingStatus: "to-buy", status: "new" })]);
+
+    await addLearningSuggestionToTrip(learning.id, futureTrip, db);
+    expect(await db.packingItems.where("tripId").equals(futureTrip.id).first()).toMatchObject({ name: "Reef shoes", status: "to-buy", source: "post-trip-learning" });
+
+    const unrelated = { ...futureTrip, id: "trip:city", tripType: "city-break" as const };
+    expect(await listLearningSuggestionsForTrip(unrelated, db)).toEqual([]);
   });
 });
 

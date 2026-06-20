@@ -345,15 +345,24 @@ export type PreTripTask = BaseEntity & {
 
 export type PostTripReview = BaseEntity & {
   tripId: string;
+  status: "draft" | "completed";
   completedAt?: string;
   summary?: string;
 };
 
-export type ReviewLearning = BaseEntity & {
+export type ReviewLearning = ArchivableEntity & {
   reviewId: string;
+  sourceTripId?: string;
+  sourcePackingItemId?: string;
   itemName: string;
   learningType: ReviewLearningType;
   appliesToTripTypes: TripType[];
+  category?: string;
+  ownerTravellerId?: string;
+  originalBagId?: string;
+  originalBagName?: string;
+  suggestedBagId?: string;
+  suggestedBagName?: string;
   actionTaken?: string;
   notes?: string;
 };

@@ -21,7 +21,7 @@ import type {
 } from "./types";
 
 export const DATABASE_NAME = "properly-packed-db";
-export const DATABASE_VERSION = 4;
+export const DATABASE_VERSION = 5;
 
 const storesV1 = {
   travellers: "id, name, travellerType, seedKey",
@@ -60,6 +60,13 @@ const storesV4 = {
   contextOptions: "id, type, label, active, sortOrder, seedKey, archivedAt",
 };
 
+const storesV5 = {
+  ...storesV4,
+  postTripReviews: "id, &tripId, status",
+  reviewLearnings:
+    "id, reviewId, sourceTripId, learningType, *appliesToTripTypes, archivedAt",
+};
+
 export class ProperlyPackedDatabase extends Dexie {
   travellers!: Table<Traveller, string>;
   contextOptions!: Table<ContextOption, string>;
@@ -86,8 +93,34 @@ export class ProperlyPackedDatabase extends Dexie {
     this.version(1).stores(storesV1);
     this.version(2).stores(storesV2);
     this.version(3).stores(storesV3).upgrade(migrateNeutralOwnership);
-    this.version(DATABASE_VERSION).stores(storesV4).upgrade(migrateTripContexts);
+    this.version(4).stores(storesV4).upgrade(migrateTripContexts);
+    this.version(DATABASE_VERSION).stores(storesV5).upgrade(migrateReviewRecords);
   }
+}
+
+async function migrateReviewRecords(transaction: Transaction) {
+  const now = new Date().toISOString();
+  const reviews = transaction.table("postTripReviews");
+  const learnings = transaction.table("reviewLearnings");
+  const reviewRows = await reviews.toArray();
+  const tripIdByReviewId = new Map<string, string>();
+
+  for (const review of reviewRows) {
+    tripIdByReviewId.set(review.id, review.tripId);
+    await reviews.update(review.id, {
+      status: review.completedAt ? "completed" : "draft",
+      updatedAt: review.updatedAt ?? now,
+    });
+  }
+
+  await learnings.toCollection().modify((learning) => {
+    learning.sourceTripId =
+      learning.sourceTripId ?? tripIdByReviewId.get(learning.reviewId) ?? "";
+    learning.appliesToTripTypes = Array.isArray(learning.appliesToTripTypes)
+      ? learning.appliesToTripTypes
+      : [];
+    learning.updatedAt = learning.updatedAt ?? now;
+  });
 }
 
 export const appDb = new ProperlyPackedDatabase();

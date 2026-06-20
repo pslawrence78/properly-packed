@@ -212,7 +212,7 @@ export function TripOverviewScreen() {
                 Bags
               </Link>
               <Link className="trip-action" to={`/trips/${tripData.data.trip.id}/review`}>
-                Review
+                {tripData.data.trip.status === "completed" ? "Review trip" : "Post-trip review"}
               </Link>
             </div>
           </section>

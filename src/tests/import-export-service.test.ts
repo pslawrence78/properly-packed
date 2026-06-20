@@ -50,8 +50,8 @@ describe("import and export service", () => {
     expect(exportData).toMatchObject({
       schemaVersion: EXPORT_SCHEMA_VERSION,
       exportedAt: "2026-06-16T12:00:00.000Z",
-      appVersion: "0.26.0",
-      databaseVersion: 4,
+      appVersion: "0.27.0",
+      databaseVersion: 5,
     });
     expect(exportData.appVersion).toBe(APP_VERSION);
     expect(parsed.tables.travellers).toHaveLength(1);
@@ -233,6 +233,23 @@ describe("import and export service", () => {
       ownershipScope: "unassigned",
     });
     expect(await targetDb.packingItems.get("item:unassigned")).not.toHaveProperty("bagId");
+  });
+
+  it("round trips review learning and rejects malformed review data atomically", async () => {
+    const sourceDb = createTestDatabase();
+    const targetDb = createTestDatabase();
+    const now = "2026-06-18T00:00:00.000Z";
+    await sourceDb.trips.add(trip("trip:review", "Reviewed trip"));
+    await sourceDb.postTripReviews.add({ id: "review:1", tripId: "trip:review", status: "completed", completedAt: now, summary: "Useful trip.", createdAt: now, updatedAt: now });
+    await sourceDb.reviewLearnings.add({ id: "learning:1", reviewId: "review:1", sourceTripId: "trip:review", itemName: "Cabin pegs", learningType: "always-suggest", appliesToTripTypes: ["cruise"], actionTaken: "always-suggest", createdAt: now, updatedAt: now });
+
+    await replaceDataFromExport(await generateExportData(sourceDb), targetDb);
+    expect(await targetDb.reviewLearnings.get("learning:1")).toMatchObject({ learningType: "always-suggest", actionTaken: "always-suggest", appliesToTripTypes: ["cruise"] });
+
+    const invalid = await generateExportData(sourceDb);
+    invalid.tables.reviewLearnings[0] = { ...invalid.tables.reviewLearnings[0], learningType: "mystery" as "forgotten" };
+    await expect(replaceDataFromExport(invalid, targetDb)).rejects.toThrow("Review learning is malformed");
+    expect(await targetDb.reviewLearnings.get("learning:1")).toBeDefined();
   });
 
   it("reports data safety counts and persists the last successful export", async () => {

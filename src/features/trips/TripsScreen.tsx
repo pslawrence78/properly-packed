@@ -200,6 +200,11 @@ export function TripCard({
           <Link className="trip-action" to={`/trips/${trip.id}/edit`}>
             Edit
           </Link>
+          {trip.status === "completed" ? (
+            <Link className="trip-action" to={`/trips/${trip.id}/review`}>
+              Review trip
+            </Link>
+          ) : null}
           <button className="trip-action" onClick={onSetActive} type="button">
             Set active
           </button>

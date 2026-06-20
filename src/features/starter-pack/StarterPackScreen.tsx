@@ -21,6 +21,7 @@ export function StarterPackScreen() {
   const [bundles, setBundles] = useState<Record<string, boolean>>({});
   const [owners, setOwners] = useState<Record<string, string>>({});
   const [optionals, setOptionals] = useState<Record<string, string[]>>({});
+  const [learnings, setLearnings] = useState<Record<string, boolean>>({});
 
   const starterData = useAsyncData(async () => {
     await ensureDatabaseReady();
@@ -55,6 +56,9 @@ export function StarterPackScreen() {
           optionalItemIds: optionals[bundle.bundle.id] ?? [],
         }))
         .filter(({ ownerTravellerId }) => ownerTravellerId),
+      reviewLearningIds: preview.reviewLearnings
+        .filter(({ learning, status }) => selected(learnings, learning.id, status === "new"))
+        .map(({ learning }) => learning.id),
     });
     setMessage(result.summary);
     setRefreshKey((key) => key + 1);
@@ -76,7 +80,7 @@ export function StarterPackScreen() {
               Suggestions for {starterData.data.trip.name}
             </h1>
             <p className="mt-3 max-w-3xl text-base leading-7 text-charcoal/74">
-              Review deterministic suggestions from your templates, useful extras and gadget bundles before anything is added.
+              Review deterministic suggestions from your templates, useful extras, gadget bundles and previous-trip learning before anything is added.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Link className="trip-action" to={`/trips/${starterData.data.trip.id}`}>Trip overview</Link>
@@ -124,6 +128,20 @@ export function StarterPackScreen() {
                 reason={suggestion.status === "duplicate" ? "Already in this trip." : suggestion.reason}
                 summary={suggestion.status === "duplicate" ? "Skipped as duplicate" : suggestion.extra.category}
                 onChange={(checked) => setExtras((current) => ({ ...current, [suggestion.extra.id]: checked }))}
+              />
+            ))}
+          </SuggestionSection>
+
+          <SuggestionSection title="Learnt from previous trips" empty="No review learning matches this trip yet.">
+            {starterData.data.reviewLearnings.map((suggestion) => (
+              <ChoiceCard
+                checked={selected(learnings, suggestion.learning.id, suggestion.status === "new")}
+                disabled={suggestion.status !== "new"}
+                key={suggestion.learning.id}
+                name={suggestion.learning.itemName}
+                reason={suggestion.status === "duplicate" ? "Already in this trip." : suggestion.reason}
+                summary={suggestion.packingStatus === "to-buy" ? "Add as to buy" : "Review learning"}
+                onChange={(checked) => setLearnings((current) => ({ ...current, [suggestion.learning.id]: checked }))}
               />
             ))}
           </SuggestionSection>

@@ -4,21 +4,25 @@ Family travel packing, without the forgotten bits.
 
 ## Current Release
 
-Version 0.26.0 delivers Tranche 28: Trip Readiness Dashboard and Action Views.
-The active trip dashboard now derives overall, essential, action, traveller and
-bag readiness; reports open pre-trip tasks and items without bags; and links each
-metric to a visible filtered packing-list view. Starter Pack suggestions appear
-only when the list is empty or new suggestions remain. IndexedDB remains v4,
-export schema remains v2 and seed version remains v0.11.0.
+Version 0.27.0 delivers Tranche 29: Post-Trip Review and Learning v0.1.
+Completed trips can capture forgotten, unused, invaluable, wrong-bag,
+buy-next-time, always-suggest and do-not-suggest learnings. Reviews remain
+editable, preserve item and bag snapshots, and can explicitly promote learning
+to Useful Extras or a selected template.
 
-Dashboard deep links support owner, bag, status, priority, no-bag and outstanding
-filters. Unknown status or priority query values are ignored safely, and active
-filters can be cleared from the Pack screen.
+Matching positive learning appears as a separate, opt-in Starter Pack source.
+Buy-next-time items are added with `to-buy` status, forgotten items retain their
+risk flag, duplicate suggestions are skipped, and trip-type suppressions prevent
+matching template suggestions from being blindly applied. No template, library,
+or future trip is silently rewritten.
 
-Validation for Tranche 28: typecheck passed, 156 tests across 47 files passed,
-the production build passed, and the configured route sweep returned HTTP 200
-for all 22 routes. The existing non-failing bundle-size and React Router future
-flag warnings remain.
+IndexedDB is v5 (review query indexes and a non-destructive review migration).
+Export schema remains v2 because review tables were already part of that contract;
+review rows now receive stricter import validation. Seed version remains v0.11.0.
+
+Validation for Tranche 29: TypeScript typecheck passed. The automated test/build
+runner was unavailable in the current sandbox session and should be run using the
+commands below before release.
 
 ## GitHub Pages Deployment
 

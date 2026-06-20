@@ -20,10 +20,18 @@ import {
   listUsefulExtras,
   type UsefulExtraSuggestion,
 } from "./useful-extras-repository";
+import {
+  addLearningSuggestionToTrip,
+  listLearningSuggestionsForTrip,
+  listSuppressedLearningNames,
+  normaliseReviewItemName,
+  type ReviewLearningSuggestion,
+} from "./post-trip-reviews-repository";
 
 export type StarterPackTemplate = TemplatePreview & { reason: string };
 export type StarterPackExtra = UsefulExtraSuggestion & { reason: string };
 export type StarterPackBundle = GadgetBundlePreview & { reason: string };
+export type StarterPackLearning = ReviewLearningSuggestion;
 
 export type StarterPackPreview = {
   trip: Trip;
@@ -31,6 +39,7 @@ export type StarterPackPreview = {
   templates: StarterPackTemplate[];
   usefulExtras: StarterPackExtra[];
   gadgetBundles: StarterPackBundle[];
+  reviewLearnings: StarterPackLearning[];
   alreadyIncluded: PackingItem[];
   newSuggestionCount: number;
   duplicateCount: number;
@@ -46,6 +55,7 @@ export type ApplyStarterPackInput = {
     ownerTravellerId: string;
     optionalItemIds?: string[];
   }>;
+  reviewLearningIds?: string[];
 };
 
 export type ApplyStarterPackResult = {
@@ -63,14 +73,18 @@ export async function previewStarterPack(
   const tripTravellers = travellers.filter(
     (traveller) => trip.travellerIds.includes(traveller.id) && !traveller.archivedAt,
   );
-  const [templates, extras, bundleMatches, existingItems, contextOptions] =
+  const [templates, extras, bundleMatches, existingItems, contextOptions, reviewLearnings, suppressedNames] =
     await Promise.all([
       previewTemplatesForTrip(trip, travellers, db),
       listUsefulExtras(db),
       previewGadgetBundlesForTrip(trip, travellers, db),
       db.packingItems.where("tripId").equals(trip.id).toArray(),
       db.contextOptions.toArray(),
+      listLearningSuggestionsForTrip(trip, db),
+      listSuppressedLearningNames(trip.tripType, db),
     ]);
+
+  const isSuppressed = (name: string) => suppressedNames.has(normaliseReviewItemName(name));
 
   const hasChild = tripTravellers.some((traveller) => traveller.travellerType === "child");
   const hasDog = tripTravellers.some((traveller) => traveller.travellerType === "dog");
@@ -114,22 +128,41 @@ export async function previewStarterPack(
     ),
   );
 
-  const templateResults = templates.map((preview) => ({
-    ...preview,
-    reason: `Suggested by ${preview.template.name} template.`,
-  }));
+  const templateResults = templates.map((preview) => {
+    const suggestions = preview.suggestions.map((suggestion) =>
+      suggestion.status === "new" && isSuppressed(suggestion.templateItem.name)
+        ? { ...suggestion, status: "skipped" as const, reason: "Not suggested because you chose this after a previous similar trip." }
+        : suggestion,
+    );
+    return {
+      ...preview,
+      suggestions,
+      newCount: suggestions.filter(({ status }) => status === "new").length,
+      skippedCount: suggestions.filter(({ status }) => status === "skipped").length,
+      reason: `Suggested by ${preview.template.name} template.`,
+    };
+  });
   const bundleResults = bundles.map((preview) => ({
     ...preview,
     reason: `Suggested by ${preview.bundle.name}.`,
   }));
-  const suggestedNames = new Set([
+  const nonLearningSuggestedNames = new Set([
     ...templateResults.flatMap((preview) =>
-      preview.suggestions.map((suggestion) => normaliseName(suggestion.templateItem.name)),
+      preview.suggestions.filter(({ status }) => status === "new").map((suggestion) => normaliseName(suggestion.templateItem.name)),
     ),
-    ...relevantExtras.map(({ extra }) => normaliseName(extra.name)),
+    ...relevantExtras.filter(({ status }) => status === "new").map(({ extra }) => normaliseName(extra.name)),
     ...bundleResults.flatMap((preview) =>
-      preview.suggestions.map((suggestion) => normaliseName(suggestion.bundleItem.name)),
+      preview.suggestions.filter(({ status }) => status === "new").map((suggestion) => normaliseName(suggestion.bundleItem.name)),
     ),
+  ]);
+  const reviewLearningResults = reviewLearnings.map((suggestion) =>
+    suggestion.status === "new" && nonLearningSuggestedNames.has(normaliseName(suggestion.learning.itemName))
+      ? { ...suggestion, status: "duplicate" as const, reason: "Already suggested by another source for this trip." }
+      : suggestion,
+  );
+  const suggestedNames = new Set([
+    ...nonLearningSuggestedNames,
+    ...reviewLearningResults.map(({ learning }) => normaliseName(learning.itemName)),
   ]);
   const alreadyIncluded = existingItems.filter(
     (item) => !item.archivedAt && suggestedNames.has(normaliseName(item.name)),
@@ -141,6 +174,7 @@ export async function previewStarterPack(
     templates: templateResults,
     usefulExtras: relevantExtras,
     gadgetBundles: bundleResults,
+    reviewLearnings: reviewLearningResults,
     alreadyIncluded,
     newSuggestionCount:
       templateResults.reduce((total, preview) => total + preview.newCount, 0) +
@@ -149,10 +183,11 @@ export async function previewStarterPack(
         (total, preview) =>
           total + preview.suggestions.filter(({ status }) => status === "new").length,
         0,
-      ),
+      ) + reviewLearningResults.filter(({ status }) => status === "new").length,
     duplicateCount:
       templateResults.reduce((total, preview) => total + preview.duplicateCount, 0) +
       relevantExtras.filter(({ status }) => status === "duplicate").length +
+      reviewLearningResults.filter(({ status }) => status === "duplicate").length +
       bundleResults.reduce((total, preview) => total + preview.duplicateCount, 0),
   };
 }
@@ -192,6 +227,11 @@ export async function applyStarterPack(
     itemsAdded += result.insertedItems;
     tasksCreated += result.createdTasks;
     duplicatesSkipped += result.skippedDuplicates;
+  }
+  for (const learningId of input.reviewLearningIds ?? []) {
+    const result = await addLearningSuggestionToTrip(learningId, input.trip, db);
+    if (result.inserted) itemsAdded += 1;
+    else duplicatesSkipped += 1;
   }
 
   return {

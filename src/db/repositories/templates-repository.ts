@@ -65,24 +65,30 @@ export async function previewTemplatesForTrip(
   travellers: Traveller[],
   db: ProperlyPackedDatabase = appDb,
 ) {
-  const [templates, templateItems, existingItems, contextOptions] = await Promise.all([
+  const [templates, templateItems, existingItems, contextOptions, reviewLearnings] = await Promise.all([
     listTemplates(db),
     db.templateItems.toArray(),
     db.packingItems.where("tripId").equals(trip.id).toArray(),
     db.contextOptions.toArray(),
+    db.reviewLearnings.where("appliesToTripTypes").equals(trip.tripType).toArray(),
   ]);
+  const suppressedNames = new Set(
+    reviewLearnings
+      .filter((learning) => !learning.archivedAt && learning.learningType === "do-not-suggest-again")
+      .map((learning) => normaliseSuggestionName(learning.itemName)),
+  );
 
   return templates
     .filter((template) => templateAppliesToTrip(template, trip, contextOptions))
     .map((template) =>
-      buildTemplatePreview(
+      suppressTemplatePreview(buildTemplatePreview(
         template,
         templateItems.filter((item) => item.templateId === template.id),
         trip,
         travellers,
         existingItems,
         contextOptions,
-      ),
+      ), suppressedNames),
     )
     .sort(
       (a, b) =>
@@ -99,20 +105,40 @@ export async function previewTemplateForTrip(
   const template = await getTemplate(templateId, db);
   if (!template) throw new Error("Template not found.");
 
-  const [templateItems, existingItems, contextOptions] = await Promise.all([
+  const [templateItems, existingItems, contextOptions, reviewLearnings] = await Promise.all([
     listTemplateItems(template.id, db),
     db.packingItems.where("tripId").equals(trip.id).toArray(),
     db.contextOptions.toArray(),
+    db.reviewLearnings.where("appliesToTripTypes").equals(trip.tripType).toArray(),
   ]);
 
-  return buildTemplatePreview(
+  return suppressTemplatePreview(buildTemplatePreview(
     template,
     templateItems,
     trip,
     travellers,
     existingItems,
     contextOptions,
+  ), new Set(reviewLearnings.filter((learning) => !learning.archivedAt && learning.learningType === "do-not-suggest-again").map((learning) => normaliseSuggestionName(learning.itemName))));
+}
+
+function suppressTemplatePreview(preview: TemplatePreview, suppressedNames: Set<string>): TemplatePreview {
+  const suggestions = preview.suggestions.map((suggestion) =>
+    suggestion.status === "new" && suppressedNames.has(normaliseSuggestionName(suggestion.templateItem.name))
+      ? { ...suggestion, status: "skipped" as const, reason: "Not suggested because you chose this after a previous similar trip." }
+      : suggestion,
   );
+  return {
+    ...preview,
+    suggestions,
+    newCount: suggestions.filter(({ status }) => status === "new").length,
+    duplicateCount: suggestions.filter(({ status }) => status === "duplicate").length,
+    skippedCount: suggestions.filter(({ status }) => status === "skipped").length,
+  };
+}
+
+function normaliseSuggestionName(value: string) {
+  return value.trim().toLocaleLowerCase().replace(/\s+/g, " ");
 }
 
 export async function applyTemplateToTrip(

@@ -1,11 +1,12 @@
 import { NotebookPen } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { TripNotFoundState } from "../../components/empty-states/TripNotFoundState";
 import { ensureDatabaseReady } from "../../db";
 import { listPackingItemsForTrip } from "../../db/repositories/packing-items-repository";
 import {
   completePostTripReview,
+  archiveReviewLearning,
   createLearningFromPackingItem,
   createReviewLearning,
   getPostTripReviewSummary,
@@ -13,15 +14,22 @@ import {
   markLearningNeverSuggest,
   promoteLearningToTemplate,
   promoteLearningToUsefulExtra,
+  reopenPostTripReview,
+  savePostTripReviewSummary,
+  updateReviewLearning,
 } from "../../db/repositories/post-trip-reviews-repository";
+import { listBagsForTrip } from "../../db/repositories/bags-repository";
+import { listTravellers } from "../../db/repositories/travellers-repository";
 import { listTemplates } from "../../db/repositories/templates-repository";
 import { getTrip, updateTrip } from "../../db/repositories/trips-repository";
 import type {
   PackingItem,
+  Bag,
   ReviewLearning,
   ReviewLearningType,
   Template,
   Trip,
+  Traveller,
 } from "../../db/types";
 import { PageSection } from "../../components/layout/PageSection";
 import { useAsyncData } from "../../hooks/use-async-data";
@@ -35,6 +43,8 @@ export function PostTripReviewScreen() {
     itemName: "",
     learningType: "forgotten" as ReviewLearningType,
     notes: "",
+    category: "",
+    ownerTravellerId: "",
   });
   const [summary, setSummary] = useState("");
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<
@@ -48,10 +58,12 @@ export function PostTripReviewScreen() {
       throw new Error("Trip not found.");
     }
 
-    const [trip, packingItems, templates] = await Promise.all([
+    const [trip, packingItems, templates, bags, travellers] = await Promise.all([
       getTrip(tripId),
       listPackingItemsForTrip(tripId),
       listTemplates(),
+      listBagsForTrip(tripId),
+      listTravellers(),
     ]);
 
     if (!trip) {
@@ -59,8 +71,12 @@ export function PostTripReviewScreen() {
     }
 
     const reviewSummary = await getPostTripReviewSummary(trip.id);
-    return { trip, packingItems, templates, ...reviewSummary };
+    return { trip, packingItems, templates, bags, travellers: travellers.filter((traveller) => trip.travellerIds.includes(traveller.id)), ...reviewSummary };
   }, [tripId, refreshKey]);
+
+  useEffect(() => {
+    if (reviewData.state === "ready") setSummary(reviewData.data.review.summary ?? "");
+  }, [reviewData.state === "ready" ? reviewData.data.review.updatedAt : ""]);
 
   async function refreshAfter(action: Promise<unknown>, success: string) {
     setMessage("");
@@ -82,10 +98,12 @@ export function PostTripReviewScreen() {
         learningType: manualValues.learningType,
         appliesToTripTypes: [reviewData.data.trip.tripType],
         notes: manualValues.notes || undefined,
+        category: manualValues.category || undefined,
+        ownerTravellerId: manualValues.ownerTravellerId || undefined,
       }),
       "Learning captured.",
     );
-    setManualValues({ itemName: "", learningType: "forgotten", notes: "" });
+    setManualValues({ itemName: "", learningType: "forgotten", notes: "", category: "", ownerTravellerId: "" });
   }
 
   async function confirmed(
@@ -127,6 +145,9 @@ export function PostTripReviewScreen() {
                 <p className="mt-3 max-w-3xl text-base leading-7 text-charcoal/74">
                   Capture forgotten, unused and invaluable items so future trips
                   get smarter.
+                </p>
+                <p className="mt-2 text-sm text-charcoal/65">
+                  {reviewData.data.trip.tripType.replace(/-/g, " ")} · {reviewData.data.trip.startDate} to {reviewData.data.trip.endDate} · {reviewData.data.review.status}
                 </p>
                 {reviewData.data.review.completedAt ? (
                   <p className="mt-2 text-sm font-semibold text-teal">
@@ -170,13 +191,16 @@ export function PostTripReviewScreen() {
                     item={item}
                     key={item.id}
                     trip={reviewData.data.trip}
-                    onCapture={(learningType) =>
+                    bags={reviewData.data.bags}
+                    onCapture={(learningType, suggestedBag) =>
                       refreshAfter(
                         createLearningFromPackingItem(
                           reviewData.data.review.id,
                           item,
                           learningType,
                           reviewData.data.trip,
+                          undefined,
+                          suggestedBag,
                         ),
                         `${item.name} tagged.`,
                       )
@@ -202,6 +226,17 @@ export function PostTripReviewScreen() {
                       }))
                     }
                   />
+                </label>
+                <label className="space-y-2 text-sm font-medium text-charcoal">
+                  <span>Category (optional)</span>
+                  <input className="min-h-12 w-full rounded-lg border border-charcoal/15 bg-cream px-3 text-base" value={manualValues.category} onChange={(event) => setManualValues((current) => ({ ...current, category: event.target.value }))} />
+                </label>
+                <label className="space-y-2 text-sm font-medium text-charcoal">
+                  <span>Owner (optional)</span>
+                  <select className="min-h-12 w-full rounded-lg border border-charcoal/15 bg-cream px-3 text-base" value={manualValues.ownerTravellerId} onChange={(event) => setManualValues((current) => ({ ...current, ownerTravellerId: event.target.value }))}>
+                    <option value="">Shared / not specified</option>
+                    {reviewData.data.travellers.map((traveller) => <option key={traveller.id} value={traveller.id}>{traveller.name}</option>)}
+                  </select>
                 </label>
                 <label className="space-y-2 text-sm font-medium text-charcoal">
                   <span>Learning type</span>
@@ -295,6 +330,8 @@ export function PostTripReviewScreen() {
                         "Add this learning to Useful Extras?",
                       )
                     }
+                    onUpdateNotes={(notes) => refreshAfter(updateReviewLearning(learning.id, { notes }), "Learning notes updated.")}
+                    onArchive={() => confirmed(() => archiveReviewLearning(learning.id), "Learning removed.", "Remove this learning from the review?")}
                   />
                 ))}
               </div>
@@ -323,6 +360,10 @@ export function PostTripReviewScreen() {
               >
                 Complete review
               </button>
+              <button className="trip-action ml-2" onClick={() => refreshAfter(savePostTripReviewSummary(reviewData.data.trip.id, summary), "Summary saved.")} type="button">Save draft</button>
+              {reviewData.data.review.status === "completed" ? (
+                <button className="trip-action ml-2" onClick={() => refreshAfter(reopenPostTripReview(reviewData.data.trip.id), "Review reopened.")} type="button">Reopen review</button>
+              ) : null}
             </div>
           </PageSection>
         </>
@@ -333,12 +374,15 @@ export function PostTripReviewScreen() {
 
 export function ReviewItemRow({
   item,
+  bags = [],
   onCapture,
 }: {
   item: PackingItem;
   trip: Trip;
-  onCapture: (learningType: ReviewLearningType) => void;
+  bags?: Bag[];
+  onCapture: (learningType: ReviewLearningType, suggestedBag?: Bag) => void;
 }) {
+  const [suggestedBagId, setSuggestedBagId] = useState("");
   return (
     <article className="rounded-lg border border-charcoal/10 bg-cream p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -360,8 +404,22 @@ export function ReviewItemRow({
             label="Buy next"
             onClick={() => onCapture("buy-for-next-time")}
           />
+          <ReviewButton label="Always suggest" onClick={() => onCapture("always-suggest")} />
+          <ReviewButton label="Do not suggest" onClick={() => onCapture("do-not-suggest-again")} />
         </div>
       </div>
+      {bags.length > 0 ? (
+        <label className="mt-3 block max-w-sm space-y-1 text-sm font-medium text-charcoal">
+          <span>Better bag next time (optional)</span>
+          <span className="flex gap-2">
+            <select className="min-h-11 min-w-0 flex-1 rounded-lg border border-charcoal/15 bg-paper px-3" value={suggestedBagId} onChange={(event) => setSuggestedBagId(event.target.value)}>
+              <option value="">Choose a bag</option>
+              {bags.filter((bag) => bag.id !== item.bagId).map((bag) => <option key={bag.id} value={bag.id}>{bag.name}</option>)}
+            </select>
+            <button className="trip-action" disabled={!suggestedBagId} onClick={() => onCapture("packed-in-wrong-bag", bags.find((bag) => bag.id === suggestedBagId))} type="button">Save</button>
+          </span>
+        </label>
+      ) : null}
     </article>
   );
 }
@@ -373,6 +431,8 @@ export function LearningCard({
   onPromoteTemplate,
   onPromoteUsefulExtra,
   onTemplateChange,
+  onUpdateNotes,
+  onArchive,
   selectedTemplateId,
   templates,
 }: {
@@ -382,9 +442,12 @@ export function LearningCard({
   onPromoteTemplate: () => void;
   onPromoteUsefulExtra: () => void;
   onTemplateChange: (templateId: string) => void;
+  onUpdateNotes?: (notes: string) => void;
+  onArchive?: () => void;
   selectedTemplateId: string;
   templates: Template[];
 }) {
+  const [notes, setNotes] = useState(learning.notes ?? "");
   return (
     <article className="rounded-lg border border-charcoal/10 bg-cream p-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -437,6 +500,14 @@ export function LearningCard({
             onClick={onPromoteTemplate}
           />
           </div>
+          {onUpdateNotes ? (
+            <label className="block space-y-1 text-sm font-medium text-charcoal">
+              <span>Notes</span>
+              <textarea className="min-h-20 w-full rounded-lg border border-charcoal/15 bg-paper px-3 py-2" value={notes} onChange={(event) => setNotes(event.target.value)} />
+              <button className="trip-action" onClick={() => onUpdateNotes(notes)} type="button">Save notes</button>
+            </label>
+          ) : null}
+          {onArchive ? <button className="trip-action self-start" onClick={onArchive} type="button">Remove learning</button> : null}
         </div>
       </div>
     </article>

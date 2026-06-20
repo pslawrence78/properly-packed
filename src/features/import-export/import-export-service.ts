@@ -17,6 +17,11 @@ import {
 import { contextOptionTypes, normaliseContextLabel } from "../../db/context-options";
 import type { ContextOption, ContextOptionType } from "../../db/types";
 
+const reviewLearningTypes = new Set([
+  "forgotten", "unused", "invaluable", "packed-in-wrong-bag",
+  "buy-for-next-time", "do-not-suggest-again", "always-suggest",
+]);
+
 export class ImportValidationError extends Error {
   constructor(message: string) {
     super(message);
@@ -132,8 +137,34 @@ export function validateImportData(value: unknown): ProperlyPackedExport {
 
   normaliseImportedOwnership(tables);
   normaliseImportedContexts(tables);
+  validateReviewData(tables);
 
   return value as ProperlyPackedExport;
+}
+
+function validateReviewData(tables: Record<string, unknown>) {
+  const reviews = Array.isArray(tables.postTripReviews) ? tables.postTripReviews : [];
+  const reviewIds = new Set<string>();
+  for (const review of reviews) {
+    if (!isRecord(review) || typeof review.id !== "string" || typeof review.tripId !== "string" || typeof review.createdAt !== "string" || typeof review.updatedAt !== "string") {
+      throw new ImportValidationError("Post-trip review is malformed.");
+    }
+    if (review.status !== undefined && review.status !== "draft" && review.status !== "completed") {
+      throw new ImportValidationError("Post-trip review status is invalid.");
+    }
+    review.status = review.status ?? (typeof review.completedAt === "string" ? "completed" : "draft");
+    reviewIds.add(review.id);
+  }
+
+  const learnings = Array.isArray(tables.reviewLearnings) ? tables.reviewLearnings : [];
+  for (const learning of learnings) {
+    if (!isRecord(learning) || typeof learning.id !== "string" || typeof learning.reviewId !== "string" || !reviewIds.has(learning.reviewId) || typeof learning.itemName !== "string" || !learning.itemName.trim() || !reviewLearningTypes.has(String(learning.learningType)) || !Array.isArray(learning.appliesToTripTypes) || learning.appliesToTripTypes.some((tripType) => typeof tripType !== "string") || typeof learning.createdAt !== "string" || typeof learning.updatedAt !== "string") {
+      throw new ImportValidationError("Review learning is malformed or refers to a missing review.");
+    }
+    if (learning.sourceTripId !== undefined && typeof learning.sourceTripId !== "string") {
+      throw new ImportValidationError("Review learning source trip is invalid.");
+    }
+  }
 }
 
 function validateUniqueKeys(tableName: ExportTableName, rows: unknown[]) {
