@@ -44,8 +44,8 @@ describe("gadget bundles repository", () => {
       travellers[0].id,
       db,
     );
-    expect(preview.requiredCount).toBe(4);
-    expect(preview.optionalCount).toBe(1);
+    expect(preview.requiredCount).toBe(5);
+    expect(preview.optionalCount).toBe(2);
 
     const result = await applyGadgetBundleToTrip(
       { bundleId, trip, travellers, ownerTravellerId: travellers[0].id },
@@ -54,7 +54,7 @@ describe("gadget bundles repository", () => {
     const items = await db.packingItems.where("tripId").equals(trip.id).toArray();
     const tasks = await db.preTripTasks.where("tripId").equals(trip.id).toArray();
 
-    expect(result).toMatchObject({ insertedItems: 4, createdTasks: 2 });
+    expect(result).toMatchObject({ insertedItems: 5, createdTasks: 2 });
     expect(items.every((item) => item.source === "gadget-bundle")).toBe(true);
     expect(items.every((item) => item.sourceId)).toBe(true);
     expect(tasks.map((task) => task.taskType).sort()).toEqual(["charge", "charge"]);
@@ -64,7 +64,7 @@ describe("gadget bundles repository", () => {
       db,
     );
     expect(secondResult.insertedItems).toBe(0);
-    expect(secondResult.skippedDuplicates).toBe(4);
+    expect(secondResult.skippedDuplicates).toBe(5);
   });
 
   it("includes selected optional items", async () => {

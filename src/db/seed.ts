@@ -1,4 +1,5 @@
 import type { ProperlyPackedDatabase } from "./schema";
+import type { Table } from "dexie";
 import { appDb } from "./schema";
 import {
   createSeedSettings,
@@ -57,11 +58,11 @@ export async function applyInitialSeed(
         .count();
 
       if (existingSeedVersion) {
-        await db.templates.bulkPut(templates);
-        await db.templateItems.bulkPut(templateItems);
-        await db.usefulExtras.bulkPut(usefulExtras);
-        await db.gadgetBundles.bulkPut(gadgetBundles);
-        await db.gadgetBundleItems.bulkPut(gadgetBundleItems);
+        await putSeedRecordsPreservingUserChanges(db.templates, templates);
+        await putSeedRecordsPreservingUserChanges(db.templateItems, templateItems);
+        await putSeedRecordsPreservingUserChanges(db.usefulExtras, usefulExtras);
+        await putSeedRecordsPreservingUserChanges(db.gadgetBundles, gadgetBundles);
+        await putSeedRecordsPreservingUserChanges(db.gadgetBundleItems, gadgetBundleItems);
         await db.appSettings.bulkPut(createSeedSettings(now));
 
         return {
@@ -76,11 +77,11 @@ export async function applyInitialSeed(
       }
 
       if (seededTravellerCount > 0) {
-        await db.templates.bulkPut(templates);
-        await db.templateItems.bulkPut(templateItems);
-        await db.usefulExtras.bulkPut(usefulExtras);
-        await db.gadgetBundles.bulkPut(gadgetBundles);
-        await db.gadgetBundleItems.bulkPut(gadgetBundleItems);
+        await putSeedRecordsPreservingUserChanges(db.templates, templates);
+        await putSeedRecordsPreservingUserChanges(db.templateItems, templateItems);
+        await putSeedRecordsPreservingUserChanges(db.usefulExtras, usefulExtras);
+        await putSeedRecordsPreservingUserChanges(db.gadgetBundles, gadgetBundles);
+        await putSeedRecordsPreservingUserChanges(db.gadgetBundleItems, gadgetBundleItems);
         await db.appSettings.bulkPut(createSeedSettings(now));
 
         return {
@@ -174,6 +175,22 @@ function withTimestamps<T extends BaseEntity>(entities: T[], now: string): T[] {
     createdAt: now,
     updatedAt: now,
   }));
+}
+
+async function putSeedRecordsPreservingUserChanges<T extends BaseEntity>(
+  table: Table<T, string>,
+  records: T[],
+) {
+  const safeRecords: T[] = [];
+  for (const record of records) {
+    const existing = await table.get(record.id);
+    if (existing?.userModifiedAt) continue;
+    safeRecords.push({
+      ...record,
+      createdAt: existing?.createdAt ?? record.createdAt,
+    });
+  }
+  if (safeRecords.length > 0) await table.bulkPut(safeRecords);
 }
 
 function createId(prefix: string) {

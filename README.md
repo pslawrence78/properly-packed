@@ -2,6 +2,14 @@
 
 Family travel packing, without the forgotten bits.
 
+## Current Release
+
+Version 0.24.0 delivers Tranche 26: Curated Seed Library Expansion. The built-in
+library now includes 57 Useful Extras across practical travel contexts, 10 gadget
+bundles with 68 required/optional items, and 72 suggestions across nine trip
+templates. Repeat seeding remains idempotent and now explicitly preserves records
+marked as user-modified. IndexedDB remains v4 and the export schema remains v2.
+
 ## GitHub Pages Deployment
 
 Properly Packed is configured as a Vite project-site deployment under:

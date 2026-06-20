@@ -31,26 +31,26 @@ describe("initial seed loader", () => {
 
     expect(firstSeed).toMatchObject({
       applied: true,
-      seedVersion: "0.10.0",
+      seedVersion: "0.11.0",
       travellersInserted: 0,
       templatesInserted: 9,
-      usefulExtrasInserted: 15,
-      gadgetBundlesInserted: 8,
+      usefulExtrasInserted: 57,
+      gadgetBundlesInserted: 10,
       contextOptionsInserted: 51,
     });
     expect(secondSeed).toMatchObject({
       applied: false,
-      seedVersion: "0.10.0",
+      seedVersion: "0.11.0",
       travellersInserted: 0,
       templatesInserted: 9,
-      usefulExtrasInserted: 15,
-      gadgetBundlesInserted: 8,
+      usefulExtrasInserted: 57,
+      gadgetBundlesInserted: 10,
       contextOptionsInserted: 0,
     });
     expect(travellers.map((traveller) => traveller.name)).toEqual([]);
     expect(status).toMatchObject({
       databaseVersion: 4,
-      seedVersion: "0.10.0",
+      seedVersion: "0.11.0",
       travellerCount: 0,
       defaultTravellerCount: 0,
       categoryCount: 13,
@@ -58,9 +58,35 @@ describe("initial seed loader", () => {
     });
     expect(await db.auditEvents.count()).toBe(1);
     expect(await db.templates.count()).toBe(9);
-    expect(await db.usefulExtras.count()).toBe(15);
-    expect(await db.gadgetBundles.count()).toBe(8);
-    expect(await db.gadgetBundleItems.count()).toBe(34);
+    expect(await db.templateItems.count()).toBe(72);
+    expect(await db.usefulExtras.count()).toBe(57);
+    expect(await db.gadgetBundles.count()).toBe(10);
+    expect(await db.gadgetBundleItems.count()).toBe(68);
     expect(await db.contextOptions.count()).toBe(51);
+
+    expect(await db.usefulExtras.get("seed:useful-extra:cruise:magnetic-hooks"))
+      .toMatchObject({ name: "Magnetic cruise hooks", category: "cruise-extras" });
+    expect(await db.gadgetBundles.get("seed:gadget-bundle:family-charging-station"))
+      .toMatchObject({ name: "Family charging station" });
+    expect(await db.templates.get("seed:template:fly-cruise"))
+      .toMatchObject({ name: "Fly-cruise" });
+  });
+
+  it("preserves user-modified seed records while adding new seed content", async () => {
+    const db = createTestDatabase();
+    await applyInitialSeed(db, () => "2026-06-16T00:00:00.000Z");
+    await db.usefulExtras.update("seed:useful-extra:plane-comfort:eye-mask", {
+      name: "My preferred sleep mask",
+      userModifiedAt: "2026-06-16T12:00:00.000Z",
+    });
+
+    await applyInitialSeed(db, () => "2026-06-17T00:00:00.000Z");
+
+    expect(await db.usefulExtras.get("seed:useful-extra:plane-comfort:eye-mask"))
+      .toMatchObject({
+        name: "My preferred sleep mask",
+        userModifiedAt: "2026-06-16T12:00:00.000Z",
+      });
+    expect(await db.usefulExtras.count()).toBe(57);
   });
 });
