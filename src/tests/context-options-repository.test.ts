@@ -77,7 +77,7 @@ describe("context options", () => {
     const db = createDatabase();
     const first = await applyInitialSeed(db, () => "2026-06-17T00:00:00.000Z");
     const warm = await db.contextOptions.where("seedKey").equals("context-option:climate:warm").first();
-    expect(first.contextOptionsInserted).toBe(51);
+    expect(first.contextOptionsInserted).toBe(57);
     expect(warm).toBeDefined();
 
     await updateContextOption(warm!.id, { label: "Warm and sunny" }, db);
@@ -85,7 +85,7 @@ describe("context options", () => {
     const second = await applyInitialSeed(db, () => "2026-06-18T00:00:00.000Z");
 
     expect(second.contextOptionsInserted).toBe(0);
-    expect(await db.contextOptions.count()).toBe(51);
+    expect(await db.contextOptions.count()).toBe(57);
     expect(await db.contextOptions.get(warm!.id)).toMatchObject({
       label: "Warm and sunny",
       active: false,

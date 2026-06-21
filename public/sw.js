@@ -1,5 +1,5 @@
 // Keep this release cache aligned with APP_VERSION when completing a tranche.
-const CACHE_NAME = "properly-packed-shell-v0.28.0";
+const CACHE_NAME = "properly-packed-shell-v0.29.0";
 const BASE_PATH = normaliseBasePath(new URL(self.registration.scope).pathname);
 const SHELL_ASSETS = [
   withBasePath("/"),

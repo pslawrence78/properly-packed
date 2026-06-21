@@ -4,10 +4,15 @@ Family travel packing, without the forgotten bits.
 
 ## Current Release
 
-Version 0.28.0 is the Properly Packed v1.0 Candidate hardening release.
-It adds controlled PWA updates, offline and recovery messaging, route-level code
-splitting, mobile safe-area polish, clearer local-first backup guidance and final
-release metadata without changing the IndexedDB or export contracts.
+Version 0.29.0 expands the deterministic library intelligence available at first
+use. It now includes 11 richer trip templates, 140 curated Useful Extras and 19
+gadget bundles, with context rules for flight, cruise, beach, theme park,
+dog-friendly, cold-weather, multi-centre and special-occasion travel.
+
+Gadget bundles distinguish required and optional items and use the existing
+charge, download, check and pack task workflow. Historic family packing patterns
+informed the expansion, while sensitive details and age-stale toddler defaults
+remain deliberately excluded.
 
 Tranche 29 post-trip review and learning remains included.
 Completed trips can capture forgotten, unused, invaluable, wrong-bag,
@@ -23,11 +28,11 @@ or future trip is silently rewritten.
 
 IndexedDB is v5 (review query indexes and a non-destructive review migration).
 Export schema remains v2 because review tables were already part of that contract;
-review rows now receive stricter import validation. Seed version remains v0.11.0.
+review rows retain their stricter import validation.
 
-IndexedDB remains v5, export schema remains v2 and seed data remains v0.11.0.
-See `docs/30-pwa-polish-and-v1-candidate-hardening-v0.1.md` for release-hardening
-scope, validation and known limitations.
+IndexedDB remains v5, export schema remains v2 and seed data is v0.12.0.
+See `docs/31-library-intelligence-expansion-v0.1.md` for the expanded seed
+strategy, source assumptions, deliberate exclusions and validation scope.
 
 ## GitHub Pages Deployment
 

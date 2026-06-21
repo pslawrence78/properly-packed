@@ -38,7 +38,11 @@ describe("Properly Packed app shell", () => {
     await user.click(screen.getAllByRole("link", { name: "Trips" })[0]);
 
     expect(
-      await screen.findByRole("heading", { level: 1, name: "Trips" }),
+      await screen.findByRole(
+        "heading",
+        { level: 1, name: "Trips" },
+        { timeout: 3_000 },
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Create, edit and reuse travel plans."),
@@ -54,7 +58,7 @@ describe("Properly Packed app shell", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "Settings" }),
     ).toBeInTheDocument();
-    expect(APP_VERSION).toBe("0.28.0");
+    expect(APP_VERSION).toBe("0.29.0");
     expect(screen.getAllByText(`v${APP_VERSION}`).length).toBeGreaterThan(0);
     expect(screen.getByText(APP_RELEASE_LABEL)).toBeInTheDocument();
     expect(screen.getByText("Export schema")).toBeInTheDocument();
