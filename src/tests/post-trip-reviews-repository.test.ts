@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import Dexie from "dexie";
 import { ProperlyPackedDatabase } from "../db";
 import {
   completePostTripReview,
@@ -8,6 +9,8 @@ import {
   getOrCreatePostTripReview,
   markLearningAlwaysSuggest,
   markLearningNeverSuggest,
+  removePostTripReview,
+  reopenPostTripReview,
   promoteLearningToTemplate,
   promoteLearningToUsefulExtra,
   listLearningSuggestionsForTrip,
@@ -34,6 +37,63 @@ afterEach(async () => {
 });
 
 describe("post-trip reviews repository", () => {
+  it("migrates duplicate v4 reviews without losing their learnings", async () => {
+    const name = `properly-packed-test-${crypto.randomUUID()}`;
+    const legacy = new Dexie(name);
+    legacy.version(4).stores({
+      postTripReviews: "id, tripId",
+      reviewLearnings: "id, reviewId, learningType",
+    });
+    const now = "2026-06-16T00:00:00.000Z";
+    await legacy.table("postTripReviews").bulkAdd([
+      { id: "review:first", tripId: "trip:duplicate", createdAt: now, updatedAt: now },
+      { id: "review:second", tripId: "trip:duplicate", summary: "Latest notes", completedAt: now, createdAt: "2026-06-17T00:00:00.000Z", updatedAt: "2026-06-17T00:00:00.000Z" },
+    ]);
+    await legacy.table("reviewLearnings").add({
+      id: "learning:duplicate",
+      reviewId: "review:second",
+      itemName: "Cabin pegs",
+      learningType: "forgotten",
+      createdAt: now,
+      updatedAt: now,
+    });
+    legacy.close();
+
+    const db = new ProperlyPackedDatabase(name);
+    testDatabases.push(db);
+    await db.open();
+
+    expect(await db.postTripReviews.where("tripId").equals("trip:duplicate").toArray()).toEqual([
+      expect.objectContaining({ id: "review:first", status: "completed", summary: "Latest notes" }),
+    ]);
+    expect(await db.reviewLearnings.get("learning:duplicate")).toMatchObject({
+      reviewId: "review:first",
+      sourceTripId: "trip:duplicate",
+      appliesToTripTypes: [],
+    });
+  });
+
+  it("rejects missing trips and removes a review with all of its learnings", async () => {
+    const db = createTestDatabase();
+    await expect(getOrCreatePostTripReview("trip:missing", db)).rejects.toThrow("Trip not found");
+
+    const trip = tripRow([], "trip:remove");
+    await db.trips.add(trip);
+    const review = await getOrCreatePostTripReview(trip.id, db);
+    await createReviewLearning(review.id, {
+      itemName: "Travel adaptor",
+      learningType: "forgotten",
+      appliesToTripTypes: [trip.tripType],
+    }, db);
+
+    await completePostTripReview(trip.id, undefined, db);
+    await reopenPostTripReview(trip.id, db);
+    expect(await db.postTripReviews.get(review.id)).toMatchObject({ status: "draft" });
+    expect(await removePostTripReview(trip.id, db)).toBe(true);
+    expect(await db.postTripReviews.get(review.id)).toBeUndefined();
+    expect(await db.reviewLearnings.where("reviewId").equals(review.id).count()).toBe(0);
+  });
+
   it("creates learnings and completes a trip review", async () => {
     const db = createTestDatabase();
     const trip = tripRow(["traveller:adult"]);
@@ -105,6 +165,7 @@ describe("post-trip reviews repository", () => {
     await applyInitialSeed(db, () => "2026-06-16T00:00:00.000Z");
     const travellers = await db.travellers.toArray();
     const trip = tripRow(travellers.map((traveller) => traveller.id));
+    await db.trips.add(trip);
     const review = await getOrCreatePostTripReview(trip.id, db);
     const learning = await createReviewLearning(
       review.id,
@@ -129,6 +190,7 @@ describe("post-trip reviews repository", () => {
     const db = createTestDatabase();
     await applyInitialSeed(db, () => "2026-06-16T00:00:00.000Z");
     const trip = tripRow(["traveller:beck"]);
+    await db.trips.add(trip);
     const review = await getOrCreatePostTripReview(trip.id, db);
     const learning = await createReviewLearning(
       review.id,

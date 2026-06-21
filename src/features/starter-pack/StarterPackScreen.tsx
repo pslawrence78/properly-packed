@@ -56,7 +56,7 @@ export function StarterPackScreen() {
           optionalItemIds: optionals[bundle.bundle.id] ?? [],
         }))
         .filter(({ ownerTravellerId }) => ownerTravellerId),
-      reviewLearningIds: preview.reviewLearnings
+      reviewLearningIds: (preview.reviewLearnings ?? [])
         .filter(({ learning, status }) => selected(learnings, learning.id, status === "new"))
         .map(({ learning }) => learning.id),
     });
@@ -133,7 +133,7 @@ export function StarterPackScreen() {
           </SuggestionSection>
 
           <SuggestionSection title="Learnt from previous trips" empty="No review learning matches this trip yet.">
-            {starterData.data.reviewLearnings.map((suggestion) => (
+            {(starterData.data.reviewLearnings ?? []).map((suggestion) => (
               <ChoiceCard
                 checked={selected(learnings, suggestion.learning.id, suggestion.status === "new")}
                 disabled={suggestion.status !== "new"}

@@ -21,6 +21,11 @@ const reviewLearningTypes = new Set([
   "forgotten", "unused", "invaluable", "packed-in-wrong-bag",
   "buy-for-next-time", "do-not-suggest-again", "always-suggest",
 ]);
+const tripTypes = new Set([
+  "beach-holiday", "city-break", "cruise", "fly-cruise", "ex-uk-cruise",
+  "theme-park", "staycation", "short-break", "cold-weather",
+  "special-occasion", "multi-centre", "family-visit",
+]);
 
 export class ImportValidationError extends Error {
   constructor(message: string) {
@@ -143,28 +148,46 @@ export function validateImportData(value: unknown): ProperlyPackedExport {
 }
 
 function validateReviewData(tables: Record<string, unknown>) {
+  const trips = Array.isArray(tables.trips) ? tables.trips : [];
+  const tripIds = new Set(
+    trips
+      .filter((trip) => isRecord(trip) && typeof trip.id === "string")
+      .map((trip) => (trip as { id: string }).id),
+  );
   const reviews = Array.isArray(tables.postTripReviews) ? tables.postTripReviews : [];
   const reviewIds = new Set<string>();
   for (const review of reviews) {
-    if (!isRecord(review) || typeof review.id !== "string" || typeof review.tripId !== "string" || typeof review.createdAt !== "string" || typeof review.updatedAt !== "string") {
+    if (!isRecord(review) || typeof review.id !== "string" || !review.id || typeof review.tripId !== "string" || !tripIds.has(review.tripId) || !isIsoDate(review.createdAt) || !isIsoDate(review.updatedAt)) {
       throw new ImportValidationError("Post-trip review is malformed.");
     }
     if (review.status !== undefined && review.status !== "draft" && review.status !== "completed") {
       throw new ImportValidationError("Post-trip review status is invalid.");
     }
     review.status = review.status ?? (typeof review.completedAt === "string" ? "completed" : "draft");
+    if (review.completedAt !== undefined && !isIsoDate(review.completedAt)) {
+      throw new ImportValidationError("Post-trip review completion date is invalid.");
+    }
+    if (review.status === "completed" && !isIsoDate(review.completedAt)) {
+      throw new ImportValidationError("Completed post-trip review is missing its completion date.");
+    }
     reviewIds.add(review.id);
   }
 
   const learnings = Array.isArray(tables.reviewLearnings) ? tables.reviewLearnings : [];
   for (const learning of learnings) {
-    if (!isRecord(learning) || typeof learning.id !== "string" || typeof learning.reviewId !== "string" || !reviewIds.has(learning.reviewId) || typeof learning.itemName !== "string" || !learning.itemName.trim() || !reviewLearningTypes.has(String(learning.learningType)) || !Array.isArray(learning.appliesToTripTypes) || learning.appliesToTripTypes.some((tripType) => typeof tripType !== "string") || typeof learning.createdAt !== "string" || typeof learning.updatedAt !== "string") {
+    if (!isRecord(learning) || typeof learning.id !== "string" || !learning.id || typeof learning.reviewId !== "string" || !reviewIds.has(learning.reviewId) || typeof learning.itemName !== "string" || !learning.itemName.trim() || !reviewLearningTypes.has(String(learning.learningType)) || !Array.isArray(learning.appliesToTripTypes) || learning.appliesToTripTypes.some((tripType) => typeof tripType !== "string" || !tripTypes.has(tripType)) || !isIsoDate(learning.createdAt) || !isIsoDate(learning.updatedAt) || (learning.archivedAt !== undefined && !isIsoDate(learning.archivedAt))) {
       throw new ImportValidationError("Review learning is malformed or refers to a missing review.");
     }
     if (learning.sourceTripId !== undefined && typeof learning.sourceTripId !== "string") {
       throw new ImportValidationError("Review learning source trip is invalid.");
     }
   }
+}
+
+function isIsoDate(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T/.test(value)) return false;
+  const date = new Date(value);
+  return !Number.isNaN(date.valueOf()) && date.toISOString() === value;
 }
 
 function validateUniqueKeys(tableName: ExportTableName, rows: unknown[]) {

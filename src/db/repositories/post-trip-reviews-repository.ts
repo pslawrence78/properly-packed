@@ -48,14 +48,32 @@ export async function getOrCreatePostTripReview(
   tripId: string,
   db: ProperlyPackedDatabase = appDb,
 ) {
-  const existing = await db.postTripReviews.where("tripId").equals(tripId).first();
-  if (existing) return { ...existing, status: existing.status ?? (existing.completedAt ? "completed" : "draft") };
-  const now = new Date().toISOString();
-  const review: PostTripReview = {
-    id: createId("post-trip-review"), tripId, status: "draft", createdAt: now, updatedAt: now,
-  };
-  await db.postTripReviews.add(review);
-  return review;
+  return db.transaction("rw", db.trips, db.postTripReviews, async () => {
+    const trip = await db.trips.get(tripId);
+    if (!trip) throw new Error("Trip not found.");
+    const existing = await db.postTripReviews.where("tripId").equals(tripId).first();
+    if (existing) return { ...existing, status: existing.status ?? (existing.completedAt ? "completed" : "draft") };
+    const now = new Date().toISOString();
+    const review: PostTripReview = {
+      id: createId("post-trip-review"), tripId, status: "draft", createdAt: now, updatedAt: now,
+    };
+    await db.postTripReviews.add(review);
+    return review;
+  });
+}
+
+export async function removePostTripReview(
+  tripId: string,
+  db: ProperlyPackedDatabase = appDb,
+) {
+  return db.transaction("rw", db.postTripReviews, db.reviewLearnings, async () => {
+    const reviews = await db.postTripReviews.where("tripId").equals(tripId).toArray();
+    if (reviews.length === 0) return false;
+    const reviewIds = reviews.map((review) => review.id);
+    await db.reviewLearnings.where("reviewId").anyOf(reviewIds).delete();
+    await db.postTripReviews.bulkDelete(reviewIds);
+    return true;
+  });
 }
 
 export async function getPostTripReviewSummary(tripId: string, db: ProperlyPackedDatabase = appDb): Promise<ReviewSummary> {

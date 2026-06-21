@@ -203,6 +203,7 @@ const preview = {
     duplicateCount: 0,
     reason: "Suggested by Battery kit.",
   }],
+  reviewLearnings: [],
   alreadyIncluded: [{
     id: "packing:existing",
     tripId: trip.id,

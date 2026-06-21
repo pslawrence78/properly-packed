@@ -49,7 +49,7 @@ describe("initial seed loader", () => {
     });
     expect(travellers.map((traveller) => traveller.name)).toEqual([]);
     expect(status).toMatchObject({
-      databaseVersion: 4,
+      databaseVersion: 5,
       seedVersion: "0.11.0",
       travellerCount: 0,
       defaultTravellerCount: 0,

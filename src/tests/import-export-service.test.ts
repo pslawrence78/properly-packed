@@ -252,6 +252,35 @@ describe("import and export service", () => {
     expect(await targetDb.reviewLearnings.get("learning:1")).toBeDefined();
   });
 
+  it("rejects orphan reviews, malformed dates and unsupported learning trip types", async () => {
+    const sourceDb = createTestDatabase();
+    const valid = await generateExportData(sourceDb);
+    const now = "2026-06-18T00:00:00.000Z";
+    const review = { id: "review:orphan", tripId: "trip:missing", status: "draft" as const, createdAt: now, updatedAt: now };
+
+    expect(() => validateImportData({
+      ...valid,
+      tables: { ...valid.tables, postTripReviews: [review] },
+    })).toThrow("Post-trip review is malformed");
+
+    const reviewedTrip = trip("trip:review-validation", "Reviewed trip");
+    const validReview = { ...review, tripId: reviewedTrip.id };
+    expect(() => validateImportData({
+      ...valid,
+      tables: { ...valid.tables, trips: [reviewedTrip], postTripReviews: [{ ...validReview, updatedAt: "not-a-date" }] },
+    })).toThrow("Post-trip review is malformed");
+
+    expect(() => validateImportData({
+      ...valid,
+      tables: {
+        ...valid.tables,
+        trips: [reviewedTrip],
+        postTripReviews: [validReview],
+        reviewLearnings: [{ id: "learning:bad-trip-type", reviewId: validReview.id, sourceTripId: reviewedTrip.id, itemName: "Thing", learningType: "forgotten", appliesToTripTypes: ["space-flight"], createdAt: now, updatedAt: now }],
+      },
+    })).toThrow("Review learning is malformed");
+  });
+
   it("reports data safety counts and persists the last successful export", async () => {
     const db = createTestDatabase();
     await db.travellers.add(traveller("traveller:adult", "Adult traveller"));

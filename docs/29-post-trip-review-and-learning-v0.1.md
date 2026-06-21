@@ -49,5 +49,8 @@ template rewriting, weather integration or multi-user collaboration.
 
 ## Validation
 
-TypeScript typecheck passed. Full Vitest, production build, route sweep and browser
-visual checks remain to be run outside the restricted Windows sandbox.
+Validation recovery completed in Tranche 29A. TypeScript typecheck, all 162 tests
+across 47 files, the production build and the 22-route production-base HTTP sweep
+pass. Responsive behaviour was checked at code level; browser visual automation
+was unavailable because the browser process could not launch in the managed
+Windows environment.

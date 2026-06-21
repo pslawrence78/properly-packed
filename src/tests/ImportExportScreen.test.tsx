@@ -47,9 +47,9 @@ describe("ImportExportScreen", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("v0.26.0")).toBeInTheDocument();
+    expect(screen.getByText("v0.27.0")).toBeInTheDocument();
     expect(screen.getByText("Database version")).toBeInTheDocument();
-    expect(screen.getByText("v4")).toBeInTheDocument();
+    expect(screen.getByText("v5")).toBeInTheDocument();
     expect(screen.getByText("Export schema")).toBeInTheDocument();
     expect(screen.getByText("v2")).toBeInTheDocument();
     expect(screen.getByText(/may contain private trip, traveller and packing information/i)).toBeInTheDocument();
@@ -84,7 +84,7 @@ function validExport() {
     schemaVersion: "properly-packed-export-v2",
     exportedAt: "2026-06-18T12:00:00.000Z",
     appVersion: "0.23.0",
-    databaseVersion: 4,
+    databaseVersion: 5,
     tables: Object.fromEntries(exportTableNames.map((name) => [name, []])),
   };
 }

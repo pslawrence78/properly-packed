@@ -62,7 +62,7 @@ const storesV4 = {
 
 const storesV5 = {
   ...storesV4,
-  postTripReviews: "id, &tripId, status",
+  postTripReviews: "id, tripId, status",
   reviewLearnings:
     "id, reviewId, sourceTripId, learningType, *appliesToTripTypes, archivedAt",
 };
@@ -104,16 +104,35 @@ async function migrateReviewRecords(transaction: Transaction) {
   const learnings = transaction.table("reviewLearnings");
   const reviewRows = await reviews.toArray();
   const tripIdByReviewId = new Map<string, string>();
+  const canonicalReviewIdByReviewId = new Map<string, string>();
+  const reviewsByTripId = new Map<string, typeof reviewRows>();
 
   for (const review of reviewRows) {
     tripIdByReviewId.set(review.id, review.tripId);
-    await reviews.update(review.id, {
-      status: review.completedAt ? "completed" : "draft",
-      updatedAt: review.updatedAt ?? now,
+    const tripReviews = reviewsByTripId.get(review.tripId) ?? [];
+    tripReviews.push(review);
+    reviewsByTripId.set(review.tripId, tripReviews);
+  }
+
+  for (const tripReviews of reviewsByTripId.values()) {
+    tripReviews.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const canonical = tripReviews[0];
+    const completed = tripReviews.find((review) => review.completedAt);
+    const summary = [...tripReviews].reverse().find((review) => review.summary)?.summary;
+    for (const review of tripReviews) {
+      canonicalReviewIdByReviewId.set(review.id, canonical.id);
+    }
+    await reviews.update(canonical.id, {
+      status: completed ? "completed" : "draft",
+      completedAt: completed?.completedAt,
+      summary,
+      updatedAt: canonical.updatedAt ?? now,
     });
+    await reviews.bulkDelete(tripReviews.slice(1).map((review) => review.id));
   }
 
   await learnings.toCollection().modify((learning) => {
+    learning.reviewId = canonicalReviewIdByReviewId.get(learning.reviewId) ?? learning.reviewId;
     learning.sourceTripId =
       learning.sourceTripId ?? tripIdByReviewId.get(learning.reviewId) ?? "";
     learning.appliesToTripTypes = Array.isArray(learning.appliesToTripTypes)
