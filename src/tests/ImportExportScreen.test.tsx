@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { exportTableNames } from "../features/import-export/export-schema";
+import { APP_VERSION } from "../lib/app-version";
 
 const mocks = vi.hoisted(() => ({
   replaceDataFromExport: vi.fn().mockResolvedValue(undefined),
@@ -47,7 +48,7 @@ describe("ImportExportScreen", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("v0.27.0")).toBeInTheDocument();
+    expect(screen.getByText(`v${APP_VERSION}`)).toBeInTheDocument();
     expect(screen.getByText("Database version")).toBeInTheDocument();
     expect(screen.getByText("v5")).toBeInTheDocument();
     expect(screen.getByText("Export schema")).toBeInTheDocument();

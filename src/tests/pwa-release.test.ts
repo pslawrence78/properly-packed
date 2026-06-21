@@ -13,6 +13,12 @@ describe("PWA release metadata", () => {
     const serviceWorker = readFileSync(`${publicPath}sw.js`, "utf8");
     expect(serviceWorker).toContain(`properly-packed-shell-v${APP_VERSION}`);
     expect(serviceWorker).not.toContain("properly-packed-shell-v0.17.0");
+    const installHandler = serviceWorker.slice(
+      serviceWorker.indexOf('addEventListener("install"'),
+      serviceWorker.indexOf('addEventListener("activate"'),
+    );
+    expect(installHandler).not.toContain("skipWaiting()");
+    expect(serviceWorker).toContain('event.data?.type === "SKIP_WAITING"');
   });
 
   it("keeps manifest launch metadata scoped to the deployed project path", () => {

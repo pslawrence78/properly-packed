@@ -4,7 +4,12 @@ Family travel packing, without the forgotten bits.
 
 ## Current Release
 
-Version 0.27.0 delivers Tranche 29: Post-Trip Review and Learning v0.1.
+Version 0.28.0 is the Properly Packed v1.0 Candidate hardening release.
+It adds controlled PWA updates, offline and recovery messaging, route-level code
+splitting, mobile safe-area polish, clearer local-first backup guidance and final
+release metadata without changing the IndexedDB or export contracts.
+
+Tranche 29 post-trip review and learning remains included.
 Completed trips can capture forgotten, unused, invaluable, wrong-bag,
 buy-next-time, always-suggest and do-not-suggest learnings. Reviews remain
 editable, preserve item and bag snapshots, and can explicitly promote learning
@@ -20,9 +25,9 @@ IndexedDB is v5 (review query indexes and a non-destructive review migration).
 Export schema remains v2 because review tables were already part of that contract;
 review rows now receive stricter import validation. Seed version remains v0.11.0.
 
-Validation for Tranche 29: TypeScript typecheck passed. The automated test/build
-runner was unavailable in the current sandbox session and should be run using the
-commands below before release.
+IndexedDB remains v5, export schema remains v2 and seed data remains v0.11.0.
+See `docs/30-pwa-polish-and-v1-candidate-hardening-v0.1.md` for release-hardening
+scope, validation and known limitations.
 
 ## GitHub Pages Deployment
 

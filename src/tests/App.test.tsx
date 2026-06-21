@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { App } from "../app/App";
-import { APP_TAGLINE, APP_VERSION } from "../lib/app-version";
+import { APP_RELEASE_LABEL, APP_TAGLINE, APP_VERSION } from "../lib/app-version";
 
 describe("Properly Packed app shell", () => {
   it("renders the app name and tagline", () => {
@@ -38,7 +38,7 @@ describe("Properly Packed app shell", () => {
     await user.click(screen.getAllByRole("link", { name: "Trips" })[0]);
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "Trips" }),
+      await screen.findByRole("heading", { level: 1, name: "Trips" }),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Create, edit and reuse travel plans."),
@@ -52,10 +52,11 @@ describe("Properly Packed app shell", () => {
     await user.click(screen.getByRole("link", { name: "Settings" }));
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "Settings" }),
+      await screen.findByRole("heading", { level: 1, name: "Settings" }),
     ).toBeInTheDocument();
-    expect(APP_VERSION).toBe("0.27.0");
+    expect(APP_VERSION).toBe("0.28.0");
     expect(screen.getAllByText(`v${APP_VERSION}`).length).toBeGreaterThan(0);
+    expect(screen.getByText(APP_RELEASE_LABEL)).toBeInTheDocument();
     expect(screen.getByText("Export schema")).toBeInTheDocument();
     expect(screen.getAllByText("v2").length).toBeGreaterThan(0);
   });
@@ -69,10 +70,11 @@ describe("Properly Packed app shell", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "Settings" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Backup & Restore/ })).toHaveAttribute(
-      "href",
-      "/settings/import-export",
-    );
+    expect(
+      screen
+        .getAllByRole("link", { name: /Backup & Restore/ })
+        .every((link) => link.getAttribute("href") === "/settings/import-export"),
+    ).toBe(true);
     expect(
       screen
         .getAllByRole("link", { name: /Travellers/ })

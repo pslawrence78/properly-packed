@@ -1,5 +1,5 @@
 // Keep this release cache aligned with APP_VERSION when completing a tranche.
-const CACHE_NAME = "properly-packed-shell-v0.27.0";
+const CACHE_NAME = "properly-packed-shell-v0.28.0";
 const BASE_PATH = normaliseBasePath(new URL(self.registration.scope).pathname);
 const SHELL_ASSETS = [
   withBasePath("/"),
@@ -17,8 +17,7 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => cache.addAll(SHELL_ASSETS))
-      .then(() => self.skipWaiting()),
+      .then((cache) => cache.addAll(SHELL_ASSETS)),
   );
 });
 

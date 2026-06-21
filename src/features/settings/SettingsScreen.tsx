@@ -14,7 +14,13 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link } from "react-router-dom";
-import { APP_NAME, APP_TAGLINE, APP_VERSION } from "../../lib/app-version";
+import {
+  APP_NAME,
+  APP_RELEASE_LABEL,
+  APP_TAGLINE,
+  APP_VERSION,
+  CACHE_VERSION,
+} from "../../lib/app-version";
 import { FeaturePreviewCard } from "../../components/cards/FeaturePreviewCard";
 import { PageSection } from "../../components/layout/PageSection";
 import { useDatabaseStatus } from "../../hooks/use-database-status";
@@ -182,6 +188,14 @@ export function SettingsScreen() {
             <dd className="mt-1 font-semibold text-charcoal">v{APP_VERSION}</dd>
           </div>
           <div className="rounded-lg bg-cream p-4">
+            <dt className="font-medium text-charcoal/64">Release status</dt>
+            <dd className="mt-1 font-semibold text-tealDeep">{APP_RELEASE_LABEL}</dd>
+          </div>
+          <div className="rounded-lg bg-cream p-4">
+            <dt className="font-medium text-charcoal/64">Cache version</dt>
+            <dd className="mt-1 font-semibold text-charcoal">v{CACHE_VERSION}</dd>
+          </div>
+          <div className="rounded-lg bg-cream p-4">
             <dt className="font-medium text-charcoal/64">Export schema</dt>
             <dd className="mt-1 font-semibold text-charcoal">
               v{EXPORT_SCHEMA_VERSION.replace(/^.*-v/, "")}
@@ -192,6 +206,17 @@ export function SettingsScreen() {
             <dd className="mt-1 font-semibold text-charcoal">{APP_TAGLINE}</dd>
           </div>
           </dl>
+          <div className="mt-4 rounded-lg border border-teal/20 bg-tealSoft p-4 text-sm leading-6 text-charcoal/75">
+            <p className="font-semibold text-charcoal">Local-first and private by design</p>
+            <p className="mt-1">
+              Your trips and family packing data stay in this browser on this device
+              unless you export them. Create a backup before imports, resets, browser
+              cleanup or moving to another device.
+            </p>
+            <Link className="trip-action mt-3" to="/settings/import-export">
+              Open Backup &amp; Restore
+            </Link>
+          </div>
         </PageSection>
       </div>
 

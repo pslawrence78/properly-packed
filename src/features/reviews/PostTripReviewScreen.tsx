@@ -362,7 +362,19 @@ export function PostTripReviewScreen() {
               </button>
               <button className="trip-action ml-2" onClick={() => refreshAfter(savePostTripReviewSummary(reviewData.data.trip.id, summary), "Summary saved.")} type="button">Save draft</button>
               {reviewData.data.review.status === "completed" ? (
-                <button className="trip-action ml-2" onClick={() => refreshAfter(reopenPostTripReview(reviewData.data.trip.id), "Review reopened.")} type="button">Reopen review</button>
+                <button
+                  className="trip-action ml-2"
+                  onClick={() =>
+                    confirmed(
+                      () => reopenPostTripReview(reviewData.data.trip.id),
+                      "Review reopened.",
+                      "Reopen this completed review? You will be able to change its summary and learnings again.",
+                    )
+                  }
+                  type="button"
+                >
+                  Reopen review
+                </button>
               ) : null}
             </div>
           </PageSection>

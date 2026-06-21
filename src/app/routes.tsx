@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import { lazy, type ComponentType } from "react";
 import {
   Backpack,
   Cable,
@@ -11,24 +12,36 @@ import {
   Shirt,
   Users,
 } from "lucide-react";
-import { BagsScreen } from "../features/bags/BagsScreen";
-import { DashboardScreen } from "../features/dashboard/DashboardScreen";
-import { GadgetLibraryScreen, GadgetPlannerScreen } from "../features/gadgets";
-import { ImportExportScreen } from "../features/import-export";
-import { ItineraryScreen } from "../features/itinerary";
-import { OutfitPlannerScreen } from "../features/outfits";
-import { PackingListScreen } from "../features/packing-items/PackingListScreen";
-import { PostTripReviewScreen } from "../features/reviews";
-import { SettingsScreen } from "../features/settings/SettingsScreen";
-import { StarterPackScreen } from "../features/starter-pack";
-import { ContextsSettingsScreen } from "../features/settings/ContextsSettingsScreen";
-import { TemplateLibraryScreen, TripTemplatesScreen } from "../features/templates";
-import { CreateTripScreen } from "../features/trips/CreateTripScreen";
-import { EditTripScreen } from "../features/trips/EditTripScreen";
-import { TripOverviewScreen } from "../features/trips/TripOverviewScreen";
-import { TripsScreen } from "../features/trips/TripsScreen";
-import { TravellersScreen } from "../features/travellers/TravellersScreen";
-import { UsefulExtrasScreen } from "../features/useful-extras";
+
+const BagsScreen = lazyNamed(() => import("../features/bags/BagsScreen"), "BagsScreen");
+const DashboardScreen = lazyNamed(() => import("../features/dashboard/DashboardScreen"), "DashboardScreen");
+const GadgetLibraryScreen = lazyNamed(() => import("../features/gadgets/GadgetLibraryScreen"), "GadgetLibraryScreen");
+const GadgetPlannerScreen = lazyNamed(() => import("../features/gadgets/GadgetPlannerScreen"), "GadgetPlannerScreen");
+const ImportExportScreen = lazyNamed(() => import("../features/import-export/ImportExportScreen"), "ImportExportScreen");
+const ItineraryScreen = lazyNamed(() => import("../features/itinerary/ItineraryScreen"), "ItineraryScreen");
+const OutfitPlannerScreen = lazyNamed(() => import("../features/outfits/OutfitPlannerScreen"), "OutfitPlannerScreen");
+const PackingListScreen = lazyNamed(() => import("../features/packing-items/PackingListScreen"), "PackingListScreen");
+const PostTripReviewScreen = lazyNamed(() => import("../features/reviews/PostTripReviewScreen"), "PostTripReviewScreen");
+const SettingsScreen = lazyNamed(() => import("../features/settings/SettingsScreen"), "SettingsScreen");
+const StarterPackScreen = lazyNamed(() => import("../features/starter-pack/StarterPackScreen"), "StarterPackScreen");
+const ContextsSettingsScreen = lazyNamed(() => import("../features/settings/ContextsSettingsScreen"), "ContextsSettingsScreen");
+const TemplateLibraryScreen = lazyNamed(() => import("../features/templates/TemplateLibraryScreen"), "TemplateLibraryScreen");
+const TripTemplatesScreen = lazyNamed(() => import("../features/templates/TripTemplatesScreen"), "TripTemplatesScreen");
+const CreateTripScreen = lazyNamed(() => import("../features/trips/CreateTripScreen"), "CreateTripScreen");
+const EditTripScreen = lazyNamed(() => import("../features/trips/EditTripScreen"), "EditTripScreen");
+const TripOverviewScreen = lazyNamed(() => import("../features/trips/TripOverviewScreen"), "TripOverviewScreen");
+const TripsScreen = lazyNamed(() => import("../features/trips/TripsScreen"), "TripsScreen");
+const TravellersScreen = lazyNamed(() => import("../features/travellers/TravellersScreen"), "TravellersScreen");
+const UsefulExtrasScreen = lazyNamed(() => import("../features/useful-extras/UsefulExtrasScreen"), "UsefulExtrasScreen");
+
+function lazyNamed<TModule, TKey extends keyof TModule>(
+  loader: () => Promise<TModule>,
+  exportName: TKey,
+) {
+  return lazy(async () => ({
+    default: (await loader())[exportName] as ComponentType,
+  }));
+}
 
 export type AppRoute = {
   path: string;
