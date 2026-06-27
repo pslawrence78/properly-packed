@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PackingItem } from "../db/types";
 import {
+  buildPackingGroups,
   calculatePackingProgress,
   filterPackingItems,
   getQuickAddOwnershipDefault,
@@ -172,4 +173,122 @@ describe("packing item utilities", () => {
       ).toEqual([matching]);
     },
   );
+
+  it("groups packing items by traveller with shared and fallback groups", () => {
+    const groups = buildPackingGroups({
+      bags: [],
+      items: [
+        item({ id: "phil", ownerTravellerId: "traveller:phil" }),
+        item({ id: "shared", ownershipScope: "shared", ownerTravellerId: undefined }),
+        item({ id: "unknown", ownerTravellerId: "traveller:missing" }),
+      ],
+      travellers: [
+        traveller("traveller:phil", "Phil"),
+        traveller("traveller:beck", "Beck"),
+      ],
+      viewMode: "person",
+    });
+
+    expect(groups.map((group) => group.title)).toEqual([
+      "Phil",
+      "Beck",
+      "Shared Family",
+      "Unknown or Unassigned",
+      "Unknown traveller",
+    ]);
+    expect(groups.find((group) => group.title === "Phil")?.items).toHaveLength(1);
+    expect(groups.find((group) => group.title === "Unknown traveller")?.items).toHaveLength(1);
+  });
+
+  it("groups packing items by category", () => {
+    const groups = buildPackingGroups({
+      bags: [],
+      items: [
+        item({ id: "documents", category: "documents" }),
+        item({ id: "toiletries", category: "toiletries" }),
+      ],
+      travellers: [],
+      viewMode: "category",
+    });
+
+    expect(groups.map((group) => group.title)).toEqual(["documents", "toiletries"]);
+    expect(groups[0].quickAddDefault).toMatchObject({ category: "documents" });
+  });
+
+  it("groups packing items by bag including no-bag and missing-bag fallbacks", () => {
+    const groups = buildPackingGroups({
+      bags: [{ id: "bag:main", name: "Main suitcase", ownerTravellerId: "traveller:phil" }] as never,
+      items: [
+        item({ id: "bagged", bagId: "bag:main" }),
+        item({ id: "unbagged", bagId: undefined }),
+        item({ id: "missing", bagId: "bag:missing" }),
+      ],
+      travellers: [traveller("traveller:phil", "Phil")],
+      viewMode: "bag",
+    });
+
+    expect(groups.map((group) => group.title)).toEqual([
+      "Main suitcase",
+      "No bag assigned",
+      "Bag unavailable",
+    ]);
+    expect(groups[0].subtitle).toBe("Owner: Phil");
+  });
+
+  it("groups packing items by action status and derived action needs", () => {
+    const groups = buildPackingGroups({
+      bags: [],
+      items: [
+        item({ id: "buy", status: "to-buy" }),
+        item({ id: "essential", priority: "essential", status: "needed" }),
+        item({ id: "risk", forgottenRisk: true, status: "needed" }),
+        item({ id: "packed", forgottenRisk: true, priority: "essential", status: "packed" }),
+      ],
+      travellers: [],
+      viewMode: "action",
+    });
+
+    expect(groups.map((group) => group.title)).toEqual([
+      "To buy",
+      "Essentials not packed",
+      "No bag assigned",
+      "Forgotten risk",
+      "Needed / outstanding",
+    ]);
+    expect(groups.find((group) => group.title === "Essentials not packed")?.items.map((entry) => entry.id)).toEqual([
+      "buy",
+      "essential",
+      "risk",
+    ]);
+  });
+
+  it("excludes not-taking items from grouped progress", () => {
+    const [group] = buildPackingGroups({
+      bags: [],
+      items: [
+        item({ id: "packed", status: "packed" }),
+        item({ id: "needed", status: "needed" }),
+        item({ id: "skip", status: "not-taking" }),
+      ],
+      travellers: [],
+      viewMode: "flat",
+    });
+
+    expect(group.progress).toMatchObject({
+      packedCount: 1,
+      packableCount: 2,
+      notTakingCount: 1,
+    });
+  });
 });
+
+function traveller(id: string, name: string) {
+  return {
+    id,
+    name,
+    travellerType: "adult",
+    defaultIncluded: true,
+    createdAt: "2026-06-16T00:00:00.000Z",
+    updatedAt: "2026-06-16T00:00:00.000Z",
+  } as const;
+}

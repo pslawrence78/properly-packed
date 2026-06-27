@@ -4,10 +4,14 @@ import type {
   PackingItem,
   PackingPriority,
   PackingStatus,
+  Traveller,
 } from "../../db/types";
 
 export const SHARED_OWNERSHIP_FILTER = "__shared";
 export const UNASSIGNED_OWNERSHIP_FILTER = "__unassigned";
+export const UNASSIGNED_BAG_FILTER = "__unassigned";
+
+export type PackViewMode = "person" | "category" | "bag" | "action" | "flat";
 
 export const packingStatusOptions: { value: PackingStatus; label: string }[] = [
   { value: "needed", label: "Needed" },
@@ -18,7 +22,11 @@ export const packingStatusOptions: { value: PackingStatus; label: string }[] = [
   { value: "to-decide", label: "To decide" },
   { value: "ready", label: "Ready" },
   { value: "packed", label: "Packed" },
+  { value: "hand-luggage", label: "Hand luggage" },
+  { value: "suitcase", label: "Suitcase" },
   { value: "not-taking", label: "Not taking" },
+  { value: "used", label: "Used" },
+  { value: "unused", label: "Unused" },
 ];
 
 export const packingPriorityOptions: {
@@ -53,6 +61,25 @@ export type PackingProgress = {
 export type QuickAddOwnershipDefault = {
   ownershipScope: ItemOwnershipScope;
   ownerTravellerId?: string;
+};
+
+export type QuickAddContextDefault = QuickAddOwnershipDefault & {
+  bagId?: string;
+  category?: string;
+  status?: PackingStatus;
+};
+
+export type PackingGroup = {
+  id: string;
+  title: string;
+  subtitle?: string;
+  items: PackingItem[];
+  progress: PackingProgress;
+  outstandingCount: number;
+  essentialOutstandingCount: number;
+  actionCount: number;
+  emptyMessage?: string;
+  quickAddDefault?: QuickAddContextDefault;
 };
 
 export function packingFiltersFromSearchParams(params: URLSearchParams): PackingFilters {
@@ -109,6 +136,43 @@ export function calculatePackingProgress(
   };
 }
 
+export function buildPackingGroups({
+  bags,
+  items,
+  travellers,
+  viewMode,
+}: {
+  bags: Bag[];
+  items: PackingItem[];
+  travellers: Traveller[];
+  viewMode: PackViewMode;
+}): PackingGroup[] {
+  if (viewMode === "flat") {
+    return [
+      createPackingGroup({
+        id: "flat",
+        items,
+        title: "All items",
+        quickAddDefault: { ownershipScope: "unassigned" },
+      }),
+    ];
+  }
+
+  if (viewMode === "person") {
+    return buildPersonGroups(items, travellers);
+  }
+
+  if (viewMode === "category") {
+    return buildCategoryGroups(items);
+  }
+
+  if (viewMode === "bag") {
+    return buildBagGroups(items, bags, travellers);
+  }
+
+  return buildActionGroups(items);
+}
+
 export function filterPackingItems(
   items: PackingItem[],
   filters: PackingFilters,
@@ -141,13 +205,13 @@ export function filterPackingItems(
       return false;
     }
 
-    if (filters.bagId === "__unassigned" && item.bagId) {
+    if (filters.bagId === UNASSIGNED_BAG_FILTER && item.bagId) {
       return false;
     }
 
     if (
       filters.bagId &&
-      filters.bagId !== "__unassigned" &&
+      filters.bagId !== UNASSIGNED_BAG_FILTER &&
       item.bagId !== filters.bagId
     ) {
       return false;
@@ -173,6 +237,17 @@ export function normaliseCategory(category: string) {
   return category.trim().toLowerCase().replace(/\s+/g, "-");
 }
 
+export function formatPackingLabel(value: string) {
+  return value.replace(/-/g, " ");
+}
+
+export function getPackingStatusLabel(status: PackingStatus) {
+  return (
+    packingStatusOptions.find((option) => option.value === status)?.label ??
+    formatPackingLabel(status)
+  );
+}
+
 function ownershipMatchesFilter(item: PackingItem, ownerFilter: string) {
   if (ownerFilter === SHARED_OWNERSHIP_FILTER) {
     return item.ownershipScope === "shared";
@@ -183,4 +258,219 @@ function ownershipMatchesFilter(item: PackingItem, ownerFilter: string) {
   }
 
   return item.ownershipScope === "traveller" && item.ownerTravellerId === ownerFilter;
+}
+
+function buildPersonGroups(items: PackingItem[], travellers: Traveller[]) {
+  const travellerGroups = travellers
+    .filter((traveller) => !traveller.archivedAt)
+    .map((traveller) =>
+      createPackingGroup({
+        id: `person:${traveller.id}`,
+        items: items.filter(
+          (item) =>
+            item.ownershipScope === "traveller" &&
+            item.ownerTravellerId === traveller.id,
+        ),
+        title: traveller.name,
+        quickAddDefault: {
+          ownershipScope: "traveller",
+          ownerTravellerId: traveller.id,
+        },
+      }),
+    );
+  const knownTravellerIds = new Set(travellers.map((traveller) => traveller.id));
+  const unknownTravellerItems = items.filter(
+    (item) =>
+      item.ownershipScope === "traveller" &&
+      (!item.ownerTravellerId || !knownTravellerIds.has(item.ownerTravellerId)),
+  );
+
+  return [
+    ...travellerGroups,
+    createPackingGroup({
+      id: "person:shared",
+      items: items.filter((item) => item.ownershipScope === "shared"),
+      title: "Shared Family",
+      quickAddDefault: { ownershipScope: "shared" },
+    }),
+    createPackingGroup({
+      id: "person:unassigned",
+      items: items.filter((item) => item.ownershipScope === "unassigned"),
+      title: "Unknown or Unassigned",
+      quickAddDefault: { ownershipScope: "unassigned" },
+    }),
+    createPackingGroup({
+      id: "person:unknown",
+      items: unknownTravellerItems,
+      title: "Unknown traveller",
+      quickAddDefault: { ownershipScope: "unassigned" },
+    }),
+  ].filter((group) => group.items.length > 0 || group.id !== "person:unknown");
+}
+
+function buildCategoryGroups(items: PackingItem[]) {
+  const categories = [...new Set(items.map((item) => item.category || "misc"))].sort();
+  return categories.map((category) =>
+    createPackingGroup({
+      id: `category:${category}`,
+      items: items.filter((item) => (item.category || "misc") === category),
+      title: formatPackingLabel(category),
+      subtitle: `${items.filter((item) => (item.category || "misc") === category).length} items`,
+      quickAddDefault: { ownershipScope: "unassigned", category },
+    }),
+  );
+}
+
+function buildBagGroups(
+  items: PackingItem[],
+  bags: Bag[],
+  travellers: Traveller[],
+) {
+  const travellerNames = new Map(travellers.map((traveller) => [traveller.id, traveller.name]));
+  const bagGroups = bags
+    .filter((bag) => !bag.archivedAt)
+    .map((bag) =>
+      createPackingGroup({
+        id: `bag:${bag.id}`,
+        items: items.filter((item) => item.bagId === bag.id),
+        title: bag.name,
+        subtitle: bag.ownerTravellerId
+          ? `Owner: ${travellerNames.get(bag.ownerTravellerId) ?? "Unknown traveller"}`
+          : undefined,
+        quickAddDefault: { ownershipScope: "unassigned", bagId: bag.id },
+      }),
+    );
+  const knownBagIds = new Set(bags.map((bag) => bag.id));
+  const missingBagItems = items.filter(
+    (item) => item.bagId && !knownBagIds.has(item.bagId),
+  );
+
+  return [
+    ...bagGroups,
+    createPackingGroup({
+      id: "bag:unassigned",
+      items: items.filter((item) => !item.bagId),
+      title: "No bag assigned",
+      quickAddDefault: { ownershipScope: "unassigned" },
+    }),
+    createPackingGroup({
+      id: "bag:missing",
+      items: missingBagItems,
+      title: "Bag unavailable",
+      quickAddDefault: { ownershipScope: "unassigned" },
+    }),
+  ].filter((group) => group.items.length > 0 || group.id === "bag:unassigned");
+}
+
+function buildActionGroups(items: PackingItem[]) {
+  const packableItems = items.filter((item) => item.status !== "not-taking");
+  const actionDefinitions: {
+    id: string;
+    title: string;
+    items: PackingItem[];
+    quickAddDefault?: QuickAddContextDefault;
+  }[] = [
+    {
+      id: "to-buy",
+      title: "To buy",
+      items: items.filter((item) => item.status === "to-buy"),
+      quickAddDefault: { ownershipScope: "unassigned", status: "to-buy" },
+    },
+    {
+      id: "to-wash",
+      title: "To wash",
+      items: items.filter((item) => item.status === "to-wash"),
+      quickAddDefault: { ownershipScope: "unassigned", status: "to-wash" },
+    },
+    {
+      id: "to-charge",
+      title: "To charge",
+      items: items.filter((item) => item.status === "to-charge"),
+      quickAddDefault: { ownershipScope: "unassigned", status: "to-charge" },
+    },
+    {
+      id: "to-download",
+      title: "To download",
+      items: items.filter((item) => item.status === "to-download"),
+      quickAddDefault: { ownershipScope: "unassigned", status: "to-download" },
+    },
+    {
+      id: "to-decide",
+      title: "To decide",
+      items: items.filter((item) => item.status === "to-decide"),
+      quickAddDefault: { ownershipScope: "unassigned", status: "to-decide" },
+    },
+    {
+      id: "essentials-not-packed",
+      title: "Essentials not packed",
+      items: packableItems.filter(
+        (item) => item.priority === "essential" && item.status !== "packed",
+      ),
+    },
+    {
+      id: "no-bag",
+      title: "No bag assigned",
+      items: packableItems.filter((item) => !item.bagId),
+    },
+    {
+      id: "forgotten-risk",
+      title: "Forgotten risk",
+      items: packableItems.filter(
+        (item) => item.forgottenRisk && item.status !== "packed",
+      ),
+    },
+    {
+      id: "needed-outstanding",
+      title: "Needed / outstanding",
+      items: packableItems.filter(
+        (item) => item.status === "needed" || item.status === "ready",
+      ),
+      quickAddDefault: { ownershipScope: "unassigned", status: "needed" },
+    },
+  ];
+
+  return actionDefinitions
+    .map((definition) =>
+      createPackingGroup({
+        id: `action:${definition.id}`,
+        items: definition.items,
+        title: definition.title,
+        quickAddDefault: definition.quickAddDefault,
+      }),
+    )
+    .filter((group) => group.items.length > 0);
+}
+
+function createPackingGroup({
+  id,
+  items,
+  quickAddDefault,
+  subtitle,
+  title,
+}: {
+  id: string;
+  items: PackingItem[];
+  quickAddDefault?: QuickAddContextDefault;
+  subtitle?: string;
+  title: string;
+}): PackingGroup {
+  const progress = calculatePackingProgress(items);
+  const packableItems = items.filter((item) => item.status !== "not-taking");
+  return {
+    id,
+    title,
+    subtitle,
+    items,
+    progress,
+    outstandingCount: progress.packableCount - progress.packedCount,
+    essentialOutstandingCount: packableItems.filter(
+      (item) => item.priority === "essential" && item.status !== "packed",
+    ).length,
+    actionCount: packableItems.filter((item) =>
+      ["to-buy", "to-wash", "to-charge", "to-download", "to-decide"].includes(
+        item.status,
+      ),
+    ).length,
+    quickAddDefault,
+  };
 }

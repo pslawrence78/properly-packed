@@ -26,7 +26,7 @@ describe("QuickAddPackingItem", () => {
 
     render(
       <QuickAddPackingItem
-        defaultOwnership={{ ownershipScope, ownerTravellerId }}
+        defaultContext={{ ownershipScope, ownerTravellerId }}
         onSubmit={onSubmit}
         travellers={travellers}
         tripId="trip:1"
@@ -47,5 +47,36 @@ describe("QuickAddPackingItem", () => {
       status: "needed",
     });
     expect(screen.getByLabelText("Item name")).toHaveValue("");
+  });
+
+  it("quick adds with safe view context defaults", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <QuickAddPackingItem
+        defaultContext={{
+          ownershipScope: "unassigned",
+          category: "toiletries",
+          bagId: "bag:main",
+          status: "to-buy",
+        }}
+        onSubmit={onSubmit}
+        travellers={travellers}
+        tripId="trip:1"
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Item name"), "Sun cream");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Sun cream",
+        category: "toiletries",
+        bagId: "bag:main",
+        status: "to-buy",
+      }),
+    );
   });
 });

@@ -17,6 +17,7 @@ import {
 type PackingItemFormProps = {
   bags: Bag[];
   categories: string[];
+  initialDefaults?: Partial<PackingItem>;
   initialItem?: PackingItem;
   submitLabel: string;
   travellers: Traveller[];
@@ -28,6 +29,7 @@ type PackingItemFormProps = {
 export function PackingItemForm({
   bags,
   categories,
+  initialDefaults,
   initialItem,
   onCancel,
   onSubmit,
@@ -37,27 +39,30 @@ export function PackingItemForm({
 }: PackingItemFormProps) {
   const initialOwnershipScope =
     initialItem?.ownershipScope ??
+    initialDefaults?.ownershipScope ??
     (initialItem?.ownerTravellerId ? "traveller" : "unassigned");
   const [name, setName] = useState(initialItem?.name ?? "");
   const [ownershipScope, setOwnershipScope] =
     useState<ItemOwnershipScope>(initialOwnershipScope);
   const [ownerTravellerId, setOwnerTravellerId] = useState(
-    initialItem?.ownerTravellerId ?? "",
+    initialItem?.ownerTravellerId ?? initialDefaults?.ownerTravellerId ?? "",
   );
   const [responsibleTravellerId, setResponsibleTravellerId] = useState(
-    initialItem?.responsibleTravellerId ?? "",
+    initialItem?.responsibleTravellerId ??
+      initialDefaults?.responsibleTravellerId ??
+      "",
   );
   const [category, setCategory] = useState(
-    initialItem?.category ?? categories[0] ?? "misc",
+    initialItem?.category ?? initialDefaults?.category ?? categories[0] ?? "misc",
   );
   const [quantity, setQuantity] = useState(String(initialItem?.quantity ?? 1));
   const [priority, setPriority] = useState<PackingPriority>(
-    initialItem?.priority ?? "important",
+    initialItem?.priority ?? initialDefaults?.priority ?? "important",
   );
   const [status, setStatus] = useState<PackingStatus>(
-    initialItem?.status ?? "needed",
+    initialItem?.status ?? initialDefaults?.status ?? "needed",
   );
-  const [bagId, setBagId] = useState(initialItem?.bagId ?? "");
+  const [bagId, setBagId] = useState(initialItem?.bagId ?? initialDefaults?.bagId ?? "");
   const [notes, setNotes] = useState(initialItem?.notes ?? "");
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);

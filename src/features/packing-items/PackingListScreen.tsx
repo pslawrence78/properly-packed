@@ -1,4 +1,4 @@
-import { Check, PackagePlus } from "lucide-react";
+import { Check, ChevronDown, Pencil, PackagePlus, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { TripNotFoundState } from "../../components/empty-states/TripNotFoundState";
@@ -20,7 +20,14 @@ import { PackingItemForm } from "./PackingItemForm";
 import { QuickAddPackingItem } from "./QuickAddPackingItem";
 import {
   calculatePackingProgress,
+  buildPackingGroups,
   filterPackingItems,
+  formatPackingLabel,
+  getPackingStatusLabel,
+  UNASSIGNED_BAG_FILTER,
+  type PackViewMode,
+  type PackingGroup,
+  type QuickAddContextDefault,
   getQuickAddOwnershipDefault,
   packingPriorityOptions,
   packingFiltersFromSearchParams,
@@ -33,12 +40,15 @@ import { getBagName } from "../bags/bag-utils";
 
 export function PackingListScreen() {
   const { tripId } = useParams();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [refreshKey, setRefreshKey] = useState(0);
   const [showAddForm, setShowAddForm] = useState(false);
   const [quickAddFocusRequest, setQuickAddFocusRequest] = useState(0);
+  const [quickAddContextOverride, setQuickAddContextOverride] =
+    useState<QuickAddContextDefault>();
   const [editingItemId, setEditingItemId] = useState<string | undefined>();
   const [filters, setFilters] = useState<PackingFilters>(emptyPackingFilters);
+  const [viewMode, setViewMode] = useState<PackViewMode>("person");
 
   useEffect(() => {
     setFilters(packingFiltersFromSearchParams(searchParams));
@@ -80,7 +90,7 @@ export function PackingListScreen() {
       ...packingData.data.travellers.map((traveller) => traveller.id),
     ]);
     const validBags = new Set([
-      "__unassigned",
+      UNASSIGNED_BAG_FILTER,
       ...packingData.data.bags.map((bag) => bag.id),
     ]);
     setFilters((current) => ({
@@ -123,6 +133,35 @@ export function PackingListScreen() {
     );
   }, [filters.ownerTravellerId, packingData]);
 
+  const quickAddContext = useMemo<QuickAddContextDefault>(() => {
+    if (quickAddContextOverride) {
+      return quickAddContextOverride;
+    }
+    const base = quickAddOwnership;
+    return {
+      ...base,
+      category: filters.category || undefined,
+      bagId:
+        filters.bagId && filters.bagId !== UNASSIGNED_BAG_FILTER
+          ? filters.bagId
+          : undefined,
+      status: isQuickAddStatus(filters.status) ? filters.status : undefined,
+    };
+  }, [filters, quickAddContextOverride, quickAddOwnership]);
+
+  const packingGroups = useMemo(() => {
+    if (packingData.state !== "ready") {
+      return [];
+    }
+
+    return buildPackingGroups({
+      bags: packingData.data.bags,
+      items: filteredItems,
+      travellers: packingData.data.travellers,
+      viewMode,
+    });
+  }, [filteredItems, packingData, viewMode]);
+
   async function refreshAfter(action: Promise<unknown>) {
     await action;
     setShowAddForm(false);
@@ -132,7 +171,18 @@ export function PackingListScreen() {
 
   async function refreshAfterQuickAdd(action: Promise<unknown>) {
     await action;
+    setQuickAddContextOverride(undefined);
     setRefreshKey((key) => key + 1);
+  }
+
+  function clearFilters() {
+    setFilters(emptyPackingFilters());
+    setSearchParams({});
+  }
+
+  function focusQuickAdd(context?: QuickAddContextDefault) {
+    setQuickAddContextOverride(context);
+    setQuickAddFocusRequest((request) => request + 1);
   }
 
   return (
@@ -169,7 +219,7 @@ export function PackingListScreen() {
                   onClick={() => setShowAddForm((visible) => !visible)}
                   type="button"
                 >
-                  {showAddForm ? "Close form" : "Add item"}
+                  {showAddForm ? "Close form" : "Detailed add"}
                 </button>
                 <Link className="trip-action" to={`/trips/${packingData.data.trip.id}`}>
                   Trip overview
@@ -209,9 +259,9 @@ export function PackingListScreen() {
           </section>
 
           <QuickAddPackingItem
-            defaultOwnership={quickAddOwnership}
+            defaultContext={quickAddContext}
             focusRequest={quickAddFocusRequest}
-            key={`${quickAddOwnership.ownershipScope}:${quickAddOwnership.ownerTravellerId ?? ""}`}
+            key={`${quickAddContext.ownershipScope}:${quickAddContext.ownerTravellerId ?? ""}:${quickAddContext.category ?? ""}:${quickAddContext.bagId ?? ""}:${quickAddContext.status ?? ""}`}
             onSubmit={(input) =>
               refreshAfterQuickAdd(createPackingItem(input))
             }
@@ -223,6 +273,16 @@ export function PackingListScreen() {
             <PackingItemForm
               bags={packingData.data.bags}
               categories={packingData.data.categories}
+              initialDefaults={
+                {
+                  ownershipScope: quickAddContext.ownershipScope,
+                  ownerTravellerId: quickAddContext.ownerTravellerId,
+                  category: quickAddContext.category ?? "misc",
+                  priority: "important",
+                  status: quickAddContext.status ?? "needed",
+                  bagId: quickAddContext.bagId,
+                }
+              }
               travellers={packingData.data.travellers}
               tripId={packingData.data.trip.id}
               submitLabel="Add item"
@@ -235,9 +295,15 @@ export function PackingListScreen() {
             categories={packingData.data.categories}
             bags={packingData.data.bags}
             filters={filters}
-            onChange={setFilters}
+            onChange={(nextFilters) => {
+              setQuickAddContextOverride(undefined);
+              setFilters(nextFilters);
+            }}
+            onClear={clearFilters}
             travellers={packingData.data.travellers}
           />
+
+          <PackViewSwitcher value={viewMode} onChange={setViewMode} />
 
           {packingData.data.items.length === 0 ? (
             <section className="rounded-lg border border-charcoal/10 bg-paper p-5 shadow-soft sm:p-6">
@@ -251,7 +317,7 @@ export function PackingListScreen() {
               </p>
               <button
                 className="mt-5 min-h-12 rounded-lg bg-slateAccent px-5 text-sm font-semibold text-cream shadow-soft"
-                onClick={() => setQuickAddFocusRequest((request) => request + 1)}
+                onClick={() => focusQuickAdd()}
                 type="button"
               >
                 Add item
@@ -271,52 +337,40 @@ export function PackingListScreen() {
               </p>
               <button
                 className="trip-action mt-4 min-h-11"
-                onClick={() => setFilters(emptyPackingFilters())}
+                onClick={clearFilters}
                 type="button"
               >
                 Clear filters
               </button>
             </section>
           ) : (
-            <div className="grid gap-4">
-              {filteredItems.map((item) =>
-                editingItemId === item.id ? (
-                  <PackingItemForm
-                    bags={packingData.data.bags}
-                    categories={packingData.data.categories}
-                    initialItem={item}
-                    key={item.id}
-                    travellers={packingData.data.travellers}
-                    tripId={packingData.data.trip.id}
-                    submitLabel="Save item"
-                    onCancel={() => setEditingItemId(undefined)}
-                    onSubmit={(input) =>
-                      refreshAfter(updatePackingItem(item.id, input))
-                    }
-                  />
-                ) : (
-                  <PackingItemCard
-                    item={item}
-                    key={item.id}
-                    onArchive={() => {
-                      if (
-                        window.confirm(
-                          `Archive "${item.name}"? It will be removed from this packing list.`,
-                        )
-                      ) {
-                        void refreshAfter(archivePackingItem(item.id));
-                      }
-                    }}
-                    onEdit={() => setEditingItemId(item.id)}
-                    onStatus={(status) =>
-                      refreshAfter(updatePackingItemStatus(item.id, status))
-                    }
-                    bags={packingData.data.bags}
-                    travellers={packingData.data.travellers}
-                  />
-                ),
-              )}
-            </div>
+            <PackingGroups
+              bags={packingData.data.bags}
+              categories={packingData.data.categories}
+              editingItemId={editingItemId}
+              groups={packingGroups}
+              onArchive={(item) => {
+                if (
+                  window.confirm(
+                    `Archive "${item.name}"? It will be removed from this packing list.`,
+                  )
+                ) {
+                  void refreshAfter(archivePackingItem(item.id));
+                }
+              }}
+              onEdit={setEditingItemId}
+              onQuickAdd={focusQuickAdd}
+              onStatus={(item, status) =>
+                refreshAfter(updatePackingItemStatus(item.id, status))
+              }
+              onSubmitEdit={(item, input) =>
+                refreshAfter(updatePackingItem(item.id, input))
+              }
+              onCancelEdit={() => setEditingItemId(undefined)}
+              travellers={packingData.data.travellers}
+              tripId={packingData.data.trip.id}
+              viewMode={viewMode}
+            />
           )}
         </>
       ) : null}
@@ -329,15 +383,18 @@ function PackingFiltersPanel({
   categories,
   filters,
   onChange,
+  onClear,
   travellers,
 }: {
   categories: string[];
   bags: Bag[];
   filters: PackingFilters;
   onChange: (filters: PackingFilters) => void;
+  onClear: () => void;
   travellers: Traveller[];
 }) {
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
+  const filterChips = getActiveFilterChips(filters, travellers, bags);
   const ownerOptions = [
     { value: "", label: "All" },
     ...travellers.map((traveller) => ({
@@ -362,13 +419,25 @@ function PackingFiltersPanel({
         {activeFilterCount > 0 ? (
           <button
             className="trip-action min-h-11 justify-center"
-            onClick={() => onChange(emptyPackingFilters())}
+            onClick={onClear}
             type="button"
           >
             Clear filters
           </button>
         ) : null}
       </div>
+      {filterChips.length > 0 ? (
+        <div className="mt-4 flex flex-wrap gap-2" aria-label="Active filters">
+          {filterChips.map((chip) => (
+            <span
+              className="rounded-full bg-tealSoft px-3 py-1 text-xs font-semibold text-tealDeep"
+              key={chip}
+            >
+              {chip}
+            </span>
+          ))}
+        </div>
+      ) : null}
 
       <fieldset className="mt-5 space-y-2">
         <legend className="text-sm font-medium text-charcoal">Ownership</legend>
@@ -389,7 +458,7 @@ function PackingFiltersPanel({
                 }
                 type="button"
               >
-                {selected ? <Check aria-hidden="true" className="mr-2 inline h-4 w-4" /> : null}
+            {selected ? <Check aria-hidden="true" className="mr-2 inline h-4 w-4" /> : null}
                 {option.label}
               </button>
             );
@@ -435,7 +504,7 @@ function PackingFiltersPanel({
           value={filters.bagId}
           onChange={(value) => onChange({ ...filters, bagId: value })}
           options={[
-            { value: "__unassigned", label: "No bag assigned" },
+            { value: UNASSIGNED_BAG_FILTER, label: "No bag assigned" },
             ...bags.map((bag) => ({ value: bag.id, label: bag.name })),
           ]}
         />
@@ -450,6 +519,187 @@ function PackingFiltersPanel({
         Outstanding items only
       </label>
     </section>
+  );
+}
+
+function PackViewSwitcher({
+  onChange,
+  value,
+}: {
+  onChange: (mode: PackViewMode) => void;
+  value: PackViewMode;
+}) {
+  const modes: { value: PackViewMode; label: string }[] = [
+    { value: "person", label: "By Person" },
+    { value: "category", label: "By Category" },
+    { value: "bag", label: "By Bag" },
+    { value: "action", label: "By Action" },
+    { value: "flat", label: "Flat List" },
+  ];
+
+  return (
+    <section
+      aria-label="Pack view mode"
+      className="rounded-lg border border-charcoal/10 bg-paper p-3 shadow-soft"
+    >
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        {modes.map((mode) => {
+          const selected = value === mode.value;
+          return (
+            <button
+              aria-pressed={selected}
+              className={`min-h-11 rounded-lg px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal ${
+                selected
+                  ? "bg-slateAccent text-cream"
+                  : "bg-cream text-charcoal hover:bg-tealSoft"
+              }`}
+              key={mode.value}
+              onClick={() => onChange(mode.value)}
+              type="button"
+            >
+              {mode.label}
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function PackingGroups({
+  bags,
+  categories,
+  editingItemId,
+  groups,
+  onArchive,
+  onCancelEdit,
+  onEdit,
+  onQuickAdd,
+  onStatus,
+  onSubmitEdit,
+  travellers,
+  tripId,
+  viewMode,
+}: {
+  bags: Bag[];
+  categories: string[];
+  editingItemId?: string;
+  groups: PackingGroup[];
+  onArchive: (item: PackingItem) => void;
+  onCancelEdit: () => void;
+  onEdit: (itemId: string) => void;
+  onQuickAdd: (context?: QuickAddContextDefault) => void;
+  onStatus: (item: PackingItem, status: PackingItem["status"]) => void;
+  onSubmitEdit: (
+    item: PackingItem,
+    input: Parameters<typeof updatePackingItem>[1],
+  ) => Promise<void>;
+  travellers: Traveller[];
+  tripId: string;
+  viewMode: PackViewMode;
+}) {
+  if (groups.length === 0) {
+    return (
+      <section className="rounded-lg border border-charcoal/10 bg-paper p-5 shadow-soft sm:p-6">
+        <h2 className="text-xl font-semibold text-charcoal">
+          Nothing in this view yet
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-charcoal/70">
+          Try another Pack view or add an item from the quick add box above.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {viewMode === "action" ? (
+        <p className="rounded-lg bg-cream px-4 py-3 text-sm leading-6 text-charcoal/70">
+          Action groups are working views, so an item can appear in more than
+          one group when it needs attention in more than one way.
+        </p>
+      ) : null}
+      {groups.map((group) => (
+        <details
+          className="rounded-lg border border-charcoal/10 bg-paper shadow-soft"
+          key={group.id}
+          open
+        >
+          <summary className="flex cursor-pointer list-none flex-col gap-3 p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal sm:flex-row sm:items-center sm:justify-between sm:p-5 [&::-webkit-details-marker]:hidden">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <ChevronDown aria-hidden="true" className="h-4 w-4 text-charcoal/55" />
+                <h2 className="text-xl font-semibold text-charcoal">
+                  {group.title}
+                </h2>
+                {group.subtitle ? (
+                  <span className="rounded-full bg-cream px-3 py-1 text-xs font-semibold text-charcoal/65">
+                    {group.subtitle}
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-2 text-sm text-charcoal/68">
+                {group.progress.packedCount} / {group.progress.packableCount} packed
+                {group.essentialOutstandingCount > 0
+                  ? ` / ${group.essentialOutstandingCount} essentials left`
+                  : ""}
+                {group.actionCount > 0 ? ` / ${group.actionCount} actions` : ""}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                className="trip-action min-h-11 justify-center"
+                onClick={(event) => {
+                  event.preventDefault();
+                  onQuickAdd(group.quickAddDefault);
+                }}
+                type="button"
+              >
+                Add here
+              </button>
+              <span className="rounded-full bg-tealSoft px-3 py-1 text-sm font-bold text-tealDeep">
+                {group.outstandingCount} left
+              </span>
+            </div>
+          </summary>
+          {group.items.length === 0 ? (
+            <div className="border-t border-charcoal/10 p-5 text-sm leading-6 text-charcoal/70">
+              Everything in this group is packed or there is nothing assigned
+              here yet.
+            </div>
+          ) : (
+            <div className="divide-y divide-charcoal/10 border-t border-charcoal/10">
+              {group.items.map((item) =>
+                editingItemId === item.id ? (
+                  <div className="p-4 sm:p-5" key={item.id}>
+                    <PackingItemForm
+                      bags={bags}
+                      categories={categories}
+                      initialItem={item}
+                      travellers={travellers}
+                      tripId={tripId}
+                      submitLabel="Save item"
+                      onCancel={onCancelEdit}
+                      onSubmit={(input) => onSubmitEdit(item, input)}
+                    />
+                  </div>
+                ) : (
+                  <PackingItemRow
+                    bags={bags}
+                    item={item}
+                    key={item.id}
+                    onArchive={() => onArchive(item)}
+                    onEdit={() => onEdit(item.id)}
+                    onStatus={(status) => onStatus(item, status)}
+                    travellers={travellers}
+                  />
+                ),
+              )}
+            </div>
+          )}
+        </details>
+      ))}
+    </div>
   );
 }
 
@@ -483,7 +733,7 @@ function FilterSelect({
   );
 }
 
-function PackingItemCard({
+function PackingItemRow({
   item,
   onArchive,
   onEdit,
@@ -506,33 +756,51 @@ function PackingItemCard({
   );
   const isPacked = item.status === "packed";
   const isNotTaking = item.status === "not-taking";
-  const statusLabel =
-    packingStatusOptions.find((option) => option.value === item.status)?.label ??
-    item.status;
+  const statusLabel = getPackingStatusLabel(item.status);
 
   return (
     <article
-      className={`rounded-lg border p-5 shadow-soft sm:p-6 ${
+      className={`p-4 sm:p-5 ${
         isPacked
-          ? "border-teal/35 bg-tealSoft/45"
+          ? "bg-tealSoft/45"
           : isNotTaking
-            ? "border-charcoal/15 bg-charcoal/5 opacity-75"
-            : "border-charcoal/10 bg-paper"
+            ? "bg-charcoal/5 opacity-75"
+            : "bg-paper"
       }`}
     >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
+      <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
+        <button
+          aria-label={isPacked ? `Mark ${item.name} not packed` : `Mark ${item.name} packed`}
+          aria-pressed={isPacked}
+          className={`flex min-h-14 w-full items-center justify-center rounded-lg border px-4 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal sm:w-16 ${
+            isPacked
+              ? "border-teal bg-teal text-cream"
+              : "border-charcoal/15 bg-cream text-charcoal hover:border-teal"
+          }`}
+          onClick={() => onStatus(isPacked ? "needed" : "packed")}
+          type="button"
+        >
+          <Check aria-hidden="true" className="h-5 w-5" />
+          <span className="ml-2 sm:sr-only">{isPacked ? "Packed" : "Pack"}</span>
+        </button>
+        <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-2xl font-semibold text-charcoal">
+            <h3 className="text-lg font-semibold leading-7 text-charcoal sm:text-xl">
               {item.name}
-            </h2>
-            <span className="rounded-full bg-cream px-3 py-1 text-xs font-semibold text-charcoal/70">
+            </h3>
+            {item.priority === "essential" ? (
+              <span className="rounded-full bg-clay/15 px-2.5 py-1 text-xs font-bold text-charcoal">
+                Essential
+              </span>
+            ) : null}
+            <span className="rounded-full bg-cream px-2.5 py-1 text-xs font-semibold text-charcoal/70">
               {statusLabel}
             </span>
           </div>
-          <p className="mt-2 text-sm text-charcoal/70">
-            {getOwnershipLabel(item, owner)} · {formatPackingLabel(item.category)}
-            {item.quantity > 1 ? ` · Quantity ${item.quantity}` : ""} ·{" "}
+          <p className="mt-1 text-sm leading-6 text-charcoal/70">
+            {getOwnershipLabel(item, owner)} / {formatPackingLabel(item.category)} /{" "}
+            {getBagName(bags, item.bagId)}
+            {item.quantity > 1 ? ` / Qty ${item.quantity}` : ""} /{" "}
             {formatPackingLabel(item.priority)}
           </p>
           {responsible ? (
@@ -540,9 +808,6 @@ function PackingItemCard({
               Responsible: {responsible.name}
             </p>
           ) : null}
-          <p className="mt-1 text-sm text-charcoal/70">
-            Bag: {getBagName(bags, item.bagId)}
-          </p>
           {item.notes ? (
             <p className="mt-2 text-sm leading-6 text-charcoal/70">
               {item.notes}
@@ -550,25 +815,30 @@ function PackingItemCard({
           ) : null}
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:justify-end">
           <button
-            className="trip-action"
-            onClick={() => onStatus(isPacked ? "needed" : "packed")}
-            type="button"
-          >
-            {isPacked ? "Mark unpacked" : "Mark packed"}
-          </button>
-          <button
-            className="trip-action"
+            aria-label={`Mark ${item.name} not taking`}
+            className="trip-action min-h-11 justify-center"
             onClick={() => onStatus("not-taking")}
             type="button"
           >
-            Not taking
+            <X aria-hidden="true" className="h-4 w-4 sm:mr-1" />
+            <span className="sr-only sm:not-sr-only">Not taking</span>
           </button>
-          <button className="trip-action" onClick={onEdit} type="button">
-            Edit
+          <button
+            aria-label={`Edit ${item.name}`}
+            className="trip-action min-h-11 justify-center"
+            onClick={onEdit}
+            type="button"
+          >
+            <Pencil aria-hidden="true" className="h-4 w-4 sm:mr-1" />
+            <span className="sr-only sm:not-sr-only">Edit</span>
           </button>
-          <button className="trip-action" onClick={onArchive} type="button">
+          <button
+            className="trip-action min-h-11 justify-center"
+            onClick={onArchive}
+            type="button"
+          >
             Archive
           </button>
         </div>
@@ -589,8 +859,41 @@ function getOwnershipLabel(item: PackingItem, owner?: Traveller) {
   return owner?.name ?? "Unknown traveller";
 }
 
-function formatPackingLabel(value: string) {
-  return value.replace(/-/g, " ");
+function getActiveFilterChips(
+  filters: PackingFilters,
+  travellers: Traveller[],
+  bags: Bag[],
+) {
+  const chips: string[] = [];
+  const traveller = travellers.find(
+    (entry) => entry.id === filters.ownerTravellerId,
+  );
+  const bag = bags.find((entry) => entry.id === filters.bagId);
+
+  if (filters.ownerTravellerId === SHARED_OWNERSHIP_FILTER) {
+    chips.push("Owner: Shared");
+  } else if (filters.ownerTravellerId === UNASSIGNED_OWNERSHIP_FILTER) {
+    chips.push("Owner: Unassigned");
+  } else if (traveller) {
+    chips.push(`Owner: ${traveller.name}`);
+  }
+
+  if (filters.category) chips.push(`Category: ${formatPackingLabel(filters.category)}`);
+  if (filters.status) chips.push(`Status: ${getPackingStatusLabel(filters.status as PackingItem["status"])}`);
+  if (filters.priority) chips.push(`Priority: ${formatPackingLabel(filters.priority)}`);
+  if (filters.bagId === UNASSIGNED_BAG_FILTER) {
+    chips.push("Bag: No bag assigned");
+  } else if (bag) {
+    chips.push(`Bag: ${bag.name}`);
+  }
+  if (filters.search) chips.push(`Search: ${filters.search}`);
+  if (filters.outstanding) chips.push("Outstanding only");
+
+  return chips;
+}
+
+function isQuickAddStatus(status: string): status is PackingItem["status"] {
+  return ["to-buy", "to-wash", "to-charge", "to-download", "to-decide", "needed"].includes(status);
 }
 
 function ProgressMetric({ label, value }: { label: string; value: string }) {

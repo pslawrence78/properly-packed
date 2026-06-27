@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   bags: [] as Bag[],
   tripExists: true,
   createPackingItem: vi.fn().mockResolvedValue(undefined),
+  updatePackingItemStatus: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../db", () => ({ ensureDatabaseReady: vi.fn().mockResolvedValue(undefined) }));
@@ -40,7 +41,7 @@ vi.mock("../db/repositories/packing-items-repository", () => ({
   createPackingItem: mocks.createPackingItem,
   listPackingItemsForTrip: vi.fn(async () => [...mocks.items]),
   updatePackingItem: vi.fn().mockResolvedValue(undefined),
-  updatePackingItemStatus: vi.fn().mockResolvedValue(undefined),
+  updatePackingItemStatus: mocks.updatePackingItemStatus,
 }));
 
 import { PackingListScreen } from "../features/packing-items/PackingListScreen";
@@ -51,6 +52,7 @@ describe("PackingListScreen", () => {
     mocks.bags = [];
     mocks.tripExists = true;
     mocks.createPackingItem.mockClear();
+    mocks.updatePackingItemStatus.mockClear();
   });
 
   it("renders the helpful empty state and creates an unassigned quick-add item", async () => {
@@ -88,8 +90,10 @@ describe("PackingListScreen", () => {
     expect(screen.getByRole("button", { name: /Alex/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Shared/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Unassigned/ })).toBeInTheDocument();
-    expect(screen.getAllByText(/Shared · documents/)).toHaveLength(1);
-    expect(screen.getAllByText(/Unassigned · documents/)).toHaveLength(1);
+    expect(screen.getByRole("heading", { name: "Alex" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Shared Family" })).toBeInTheDocument();
+    expect(screen.getAllByText(/Shared \/ documents/)).toHaveLength(1);
+    expect(screen.getAllByText(/Unassigned \/ documents/)).toHaveLength(1);
   });
 
   it("shows assigned, unassigned and unavailable bag locations clearly", async () => {
@@ -101,9 +105,9 @@ describe("PackingListScreen", () => {
     ];
     renderScreen();
 
-    expect(await screen.findByText("Bag: Main suitcase")).toBeInTheDocument();
-    expect(screen.getByText("Bag: No bag assigned")).toBeInTheDocument();
-    expect(screen.getByText("Bag: Bag unavailable")).toBeInTheDocument();
+    expect(await screen.findAllByText(/Main suitcase/)).not.toHaveLength(0);
+    expect(screen.getAllByText(/No bag assigned/)).not.toHaveLength(0);
+    expect(screen.getAllByText(/Bag unavailable/)).not.toHaveLength(0);
     expect(screen.getByRole("option", { name: "No bag assigned" })).toBeInTheDocument();
   });
 
@@ -140,6 +144,67 @@ describe("PackingListScreen", () => {
 
     await user.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(screen.getByRole("heading", { name: "Packed cable" })).toBeInTheDocument();
+  });
+
+  it("switches between pack view modes", async () => {
+    const user = userEvent.setup();
+    mocks.bags = [bag("bag:main", "Main suitcase")];
+    mocks.items = [
+      {
+        ...packingItem("traveller", "Passport", "traveller:alex"),
+        category: "documents",
+        bagId: "bag:main",
+      },
+      {
+        ...packingItem("shared", "Sun cream"),
+        category: "toiletries",
+        status: "to-buy",
+      },
+    ];
+    renderScreen();
+
+    expect(await screen.findByRole("button", { name: "By Person" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("heading", { name: "Alex" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "By Category" }));
+    expect(screen.getByRole("heading", { name: "documents" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "By Bag" }));
+    expect(screen.getByRole("heading", { name: "Main suitcase" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "By Action" }));
+    expect(screen.getByRole("heading", { name: "To buy" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Flat List" }));
+    expect(screen.getByRole("heading", { name: "All items" })).toBeInTheDocument();
+  });
+
+  it("marks an item packed from a grouped view", async () => {
+    const user = userEvent.setup();
+    mocks.items = [packingItem("traveller", "Passport", "traveller:alex")];
+    renderScreen();
+
+    await user.click(await screen.findByRole("button", { name: "Mark Passport packed" }));
+    expect(mocks.updatePackingItemStatus).toHaveBeenCalledWith("item:Passport", "packed");
+  });
+
+  it("quick add uses the active group context safely", async () => {
+    const user = userEvent.setup();
+    mocks.items = [packingItem("traveller", "Passport", "traveller:alex")];
+    renderScreen();
+
+    await screen.findByRole("heading", { name: "Alex" });
+    await user.click(screen.getAllByRole("button", { name: "Add here" })[0]);
+    await user.type(screen.getByLabelText("Item name"), "Socks");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(mocks.createPackingItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Socks",
+        ownershipScope: "traveller",
+        ownerTravellerId: "traveller:alex",
+      }),
+    );
   });
 
   it("ignores an invalid status deep link", async () => {

@@ -2,10 +2,14 @@ import { Plus } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { PackingItemInput } from "../../db/repositories/packing-items-repository";
 import type { Traveller } from "../../db/types";
-import { type QuickAddOwnershipDefault } from "./packing-item-utils";
+import {
+  formatPackingLabel,
+  getPackingStatusLabel,
+  type QuickAddContextDefault,
+} from "./packing-item-utils";
 
 export type QuickAddPackingItemProps = {
-  defaultOwnership: QuickAddOwnershipDefault;
+  defaultContext: QuickAddContextDefault;
   focusRequest?: number;
   onSubmit: (input: PackingItemInput) => Promise<void>;
   travellers: Traveller[];
@@ -13,7 +17,7 @@ export type QuickAddPackingItemProps = {
 };
 
 export function QuickAddPackingItem({
-  defaultOwnership,
+  defaultContext,
   focusRequest = 0,
   onSubmit,
   travellers,
@@ -41,12 +45,13 @@ export function QuickAddPackingItem({
       await onSubmit({
         tripId,
         name: name.trim(),
-        ownershipScope: defaultOwnership.ownershipScope,
-        ownerTravellerId: defaultOwnership.ownerTravellerId,
-        category: "misc",
+        ownershipScope: defaultContext.ownershipScope,
+        ownerTravellerId: defaultContext.ownerTravellerId,
+        category: defaultContext.category ?? "misc",
         quantity: 1,
         priority: "important",
-        status: "needed",
+        status: defaultContext.status ?? "needed",
+        bagId: defaultContext.bagId,
       });
       setName("");
       inputRef.current?.focus();
@@ -60,21 +65,30 @@ export function QuickAddPackingItem({
   }
 
   const ownerName = travellers.find(
-    (traveller) => traveller.id === defaultOwnership.ownerTravellerId,
+    (traveller) => traveller.id === defaultContext.ownerTravellerId,
   )?.name;
   const ownershipLabel =
-    defaultOwnership.ownershipScope === "shared"
+    defaultContext.ownershipScope === "shared"
       ? "Shared"
-      : defaultOwnership.ownershipScope === "traveller"
+      : defaultContext.ownershipScope === "traveller"
         ? ownerName ?? "selected traveller"
         : "Unassigned";
+  const contextParts = [
+    ownershipLabel,
+    defaultContext.category
+      ? formatPackingLabel(defaultContext.category)
+      : undefined,
+    defaultContext.status ? getPackingStatusLabel(defaultContext.status) : undefined,
+    defaultContext.bagId ? "selected bag" : undefined,
+  ].filter(Boolean);
 
   return (
     <section className="rounded-lg border border-teal/25 bg-paper p-4 shadow-soft sm:p-5">
       <div>
         <h2 className="text-lg font-semibold text-charcoal">Quick add</h2>
         <p className="mt-1 text-sm text-charcoal/65">
-          Capture an item now as {ownershipLabel}. You can add more detail later.
+          Capture an item now as {contextParts.join(" / ")}. You can add more
+          detail later.
         </p>
       </div>
       <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
