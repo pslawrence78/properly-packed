@@ -26,6 +26,7 @@ const categories = [
   "cruise-extras",
   "misc",
   "pet",
+  "weather",
 ];
 
 describe("bulk capture parsing and enrichment", () => {
@@ -142,6 +143,82 @@ decide evening shoes`);
       name: "camera memory cards",
       ownerTravellerId: "traveller:phil",
       category: "electronics",
+    });
+  });
+
+  it("uses corpus hints to enrich common items without explicit syntax", () => {
+    const rows = rowsFor(`Toniebox
+cruise lanyards
+magnetic hooks
+AirTags
+drone batteries
+camera memory cards
+ponchos
+dog towel`);
+
+    expect(rows.find((row) => row.name === "Toniebox")).toMatchObject({
+      ownerTravellerId: "traveller:seb",
+      category: "entertainment",
+      status: "to-charge",
+    });
+    expect(rows.find((row) => row.name === "cruise lanyards")).toMatchObject({
+      category: "cruise-extras",
+    });
+    expect(rows.find((row) => row.name === "magnetic hooks")).toMatchObject({
+      category: "cruise-extras",
+    });
+    expect(rows.find((row) => row.name === "AirTags")).toMatchObject({
+      ownershipScope: "shared",
+      category: "electronics",
+    });
+    expect(rows.find((row) => row.name === "drone batteries")).toMatchObject({
+      ownerTravellerId: "traveller:phil",
+      status: "to-charge",
+    });
+    expect(rows.find((row) => row.name === "camera memory cards")).toMatchObject({
+      ownerTravellerId: "traveller:phil",
+      category: "electronics",
+    });
+    expect(rows.find((row) => row.name === "ponchos")).toMatchObject({
+      category: "weather",
+    });
+    expect(rows.find((row) => row.name === "dog towel")).toMatchObject({
+      ownerTravellerId: "traveller:albert",
+      category: "pet",
+    });
+  });
+
+  it("keeps explicit owner and status syntax ahead of corpus hints", () => {
+    const rows = rowsFor(`Phil: Toniebox
+sun cream / to buy`);
+
+    expect(rows.find((row) => row.name === "Toniebox")).toMatchObject({
+      ownerTravellerId: "traveller:phil",
+      category: "entertainment",
+    });
+    expect(rows.find((row) => row.name === "sun cream")).toMatchObject({
+      status: "to-buy",
+      category: "health",
+    });
+  });
+
+  it("keeps active context owner ahead of corpus owner hints", () => {
+    const rows = buildBulkCaptureRows(parseBulkCaptureText("Toniebox"), {
+      bags,
+      categories,
+      existingItems: [],
+      quickAddContext: {
+        ownershipScope: "traveller",
+        ownerTravellerId: "traveller:beck",
+        category: "misc",
+      },
+      travellers,
+      tripId: "trip:1",
+    });
+
+    expect(rows[0]).toMatchObject({
+      ownerTravellerId: "traveller:beck",
+      category: "misc",
     });
   });
 });

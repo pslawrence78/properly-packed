@@ -302,7 +302,9 @@ export function PackingListScreen() {
           </section>
 
           <QuickAddPackingItem
+            categories={packingData.data.categories}
             defaultContext={quickAddContext}
+            existingItems={packingData.data.items}
             focusRequest={quickAddFocusRequest}
             key={`${quickAddContext.ownershipScope}:${quickAddContext.ownerTravellerId ?? ""}:${quickAddContext.category ?? ""}:${quickAddContext.bagId ?? ""}:${quickAddContext.status ?? ""}`}
             onSubmit={(input) =>

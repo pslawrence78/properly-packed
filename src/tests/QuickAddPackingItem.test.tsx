@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { Traveller } from "../db/types";
+import type { PackingItem, Traveller } from "../db/types";
 import { QuickAddPackingItem } from "../features/packing-items/QuickAddPackingItem";
 
 const travellers: Traveller[] = [
@@ -13,7 +13,16 @@ const travellers: Traveller[] = [
     createdAt: "2026-06-16T00:00:00.000Z",
     updatedAt: "2026-06-16T00:00:00.000Z",
   },
+  {
+    id: "traveller:seb",
+    name: "Seb",
+    travellerType: "child",
+    defaultIncluded: true,
+    createdAt: "2026-06-16T00:00:00.000Z",
+    updatedAt: "2026-06-16T00:00:00.000Z",
+  },
 ];
+const categories = ["clothing", "documents", "electronics", "entertainment", "misc", "pet", "weather"];
 
 describe("QuickAddPackingItem", () => {
   it.each([
@@ -26,6 +35,7 @@ describe("QuickAddPackingItem", () => {
 
     render(
       <QuickAddPackingItem
+        categories={categories}
         defaultContext={{ ownershipScope, ownerTravellerId }}
         onSubmit={onSubmit}
         travellers={travellers}
@@ -55,6 +65,7 @@ describe("QuickAddPackingItem", () => {
 
     render(
       <QuickAddPackingItem
+        categories={categories}
         defaultContext={{
           ownershipScope: "unassigned",
           category: "toiletries",
@@ -79,4 +90,153 @@ describe("QuickAddPackingItem", () => {
       }),
     );
   });
+
+  it("shows suggestions and selecting one prefills safe fields", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <QuickAddPackingItem
+        categories={categories}
+        defaultContext={{ ownershipScope: "unassigned" }}
+        onSubmit={onSubmit}
+        travellers={travellers}
+        tripId="trip:1"
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Item name"), "ton");
+    await user.click(screen.getByRole("button", { name: "Toniebox" }));
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Toniebox",
+        ownershipScope: "traveller",
+        ownerTravellerId: "traveller:seb",
+        category: "entertainment",
+        status: "to-charge",
+        priority: "important",
+      }),
+    );
+  });
+
+  it("lets the user override suggestion hints before saving", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <QuickAddPackingItem
+        categories={categories}
+        defaultContext={{ ownershipScope: "unassigned" }}
+        onSubmit={onSubmit}
+        travellers={travellers}
+        tripId="trip:1"
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Item name"), "pon");
+    await user.click(screen.getByRole("button", { name: "Disney/theme park ponchos" }));
+    await user.selectOptions(screen.getByLabelText("Owner"), "shared");
+    await user.selectOptions(screen.getByLabelText("Category"), "clothing");
+    await user.selectOptions(screen.getByLabelText("Status"), "needed");
+    await user.selectOptions(screen.getByLabelText("Priority"), "essential");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Disney/theme park ponchos",
+        ownershipScope: "shared",
+        ownerTravellerId: undefined,
+        category: "clothing",
+        status: "needed",
+        priority: "essential",
+      }),
+    );
+  });
+
+  it("keeps active context owner ahead of corpus owner hints", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <QuickAddPackingItem
+        categories={categories}
+        defaultContext={{
+          ownershipScope: "traveller",
+          ownerTravellerId: "traveller:alex",
+        }}
+        onSubmit={onSubmit}
+        travellers={travellers}
+        tripId="trip:1"
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Item name"), "ton");
+    await user.click(screen.getByRole("button", { name: "Toniebox" }));
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ownerTravellerId: "traveller:alex",
+      }),
+    );
+  });
+
+  it("keeps custom items working and indicates duplicate suggestions", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const existingItems = [
+      packingItem("item:1", "Toniebox", "traveller:seb", "entertainment"),
+    ];
+
+    render(
+      <QuickAddPackingItem
+        categories={categories}
+        defaultContext={{ ownershipScope: "unassigned" }}
+        existingItems={existingItems}
+        onSubmit={onSubmit}
+        travellers={travellers}
+        tripId="trip:1"
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Item name"), "ton");
+    expect(screen.getByRole("button", { name: /Toniebox, already in this trip/ })).toBeInTheDocument();
+    await user.clear(screen.getByLabelText("Item name"));
+    await user.type(screen.getByLabelText("Item name"), "Custom snorkel clip");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Custom snorkel clip",
+        category: "misc",
+      }),
+    );
+  });
 });
+
+function packingItem(
+  id: string,
+  name: string,
+  ownerTravellerId: string,
+  category: string,
+): PackingItem {
+  return {
+    id,
+    tripId: "trip:1",
+    name,
+    ownershipScope: "traveller",
+    ownerTravellerId,
+    category,
+    quantity: 1,
+    priority: "important",
+    status: "needed",
+    flags: [],
+    dependencyItemIds: [],
+    source: "manual",
+    forgottenRisk: false,
+    createdAt: "2026-06-18T00:00:00.000Z",
+    updatedAt: "2026-06-18T00:00:00.000Z",
+  };
+}

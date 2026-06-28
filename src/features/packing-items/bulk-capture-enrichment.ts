@@ -17,6 +17,7 @@ import {
   matchTravellerByToken,
   normaliseBulkToken,
 } from "./bulk-capture-utils";
+import { findBestPackingAutocompleteMatch } from "./autocomplete/packing-autocomplete-search";
 
 const STATUS_TOKENS: Record<string, PackingStatus> = {
   needed: "needed",
@@ -112,12 +113,27 @@ export function enrichParsedLine(
   const warnings = [...parsed.warnings];
   const notes: string[] = [];
   let name = parsed.name;
+  const corpusSuggestion = findBestPackingAutocompleteMatch(name, {
+    categories: context.categories,
+    existingItems: context.existingItems,
+    quickAddContext: context.quickAddContext,
+    travellers: context.travellers,
+  });
   let ownershipScope: ItemOwnershipScope =
     context.quickAddContext?.ownershipScope ?? "unassigned";
   let ownerTravellerId = context.quickAddContext?.ownerTravellerId;
-  let category = context.quickAddContext?.category ?? inferCategory(name, context.categories) ?? "misc";
-  let priority: PackingPriority = inferPriority(name) ?? "important";
-  let status: PackingStatus = parsed.status ?? context.quickAddContext?.status ?? "needed";
+  let category =
+    context.quickAddContext?.category ??
+    corpusSuggestion?.resolvedCategory ??
+    inferCategory(name, context.categories) ??
+    "misc";
+  let priority: PackingPriority =
+    corpusSuggestion?.entry.priorityHint ?? inferPriority(name) ?? "important";
+  let status: PackingStatus =
+    parsed.status ??
+    context.quickAddContext?.status ??
+    corpusSuggestion?.entry.statusHint ??
+    "needed";
   let bagId = context.quickAddContext?.bagId;
 
   if (parsed.ownerToken) {
@@ -133,9 +149,15 @@ export function enrichParsedLine(
       ownerTravellerId = undefined;
       warnings.push(`Unknown owner "${parsed.ownerToken}".`);
     }
-  } else {
+  } else if (!context.quickAddContext?.ownershipScope || context.quickAddContext.ownershipScope === "unassigned") {
+    if (corpusSuggestion?.resolvedOwnership) {
+      ownershipScope = corpusSuggestion.resolvedOwnership.ownershipScope;
+      ownerTravellerId = corpusSuggestion.resolvedOwnership.ownerTravellerId;
+    }
     const inferredOwner = inferOwner(name, context.travellers);
-    if (inferredOwner === "shared") {
+    if (corpusSuggestion?.resolvedOwnership) {
+      // Corpus owner hints are deliberately lower priority than explicit syntax and active context.
+    } else if (inferredOwner === "shared") {
       ownershipScope = "shared";
       ownerTravellerId = undefined;
     } else if (inferredOwner) {
