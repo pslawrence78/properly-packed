@@ -5,11 +5,11 @@ import type { Bag, PackingItem, Traveller, Trip } from "../db/types";
 
 const mocks = vi.hoisted(() => ({
   items: [] as PackingItem[],
+  activeTripReason: "ready" as "ready" | "none" | "not-found" | "archived" | "completed",
   suggestionCount: 0,
 }));
 
 vi.mock("../db", () => ({ ensureDatabaseReady: vi.fn().mockResolvedValue(undefined) }));
-vi.mock("../db/repositories/app-settings-repository", () => ({ getActiveTripId: vi.fn().mockResolvedValue("trip:1") }));
 vi.mock("../db/repositories/trips-repository", () => ({
   getTrip: vi.fn().mockResolvedValue({
     id: "trip:1", name: "Fly-cruise", tripType: "fly-cruise", startDate: "2026-07-01", endDate: "2026-07-08",
@@ -17,6 +17,19 @@ vi.mock("../db/repositories/trips-repository", () => ({
     travellerIds: ["traveller:seb"], status: "packing", createdAt: "2026-06-18T00:00:00.000Z", updatedAt: "2026-06-18T00:00:00.000Z",
   } satisfies Trip),
   listTrips: vi.fn().mockResolvedValue([{ id: "trip:1" }]),
+  resolveActiveTrip: vi.fn(async () =>
+    mocks.activeTripReason === "ready"
+      ? {
+          reason: "ready",
+          tripId: "trip:1",
+          trip: {
+            id: "trip:1", name: "Fly-cruise", tripType: "fly-cruise", startDate: "2026-07-01", endDate: "2026-07-08",
+            nights: 7, destinations: [], climateContextIds: [], accommodationContextIds: [], transportContextIds: [], activityContextIds: [],
+            travellerIds: ["traveller:seb"], status: "packing", createdAt: "2026-06-18T00:00:00.000Z", updatedAt: "2026-06-18T00:00:00.000Z",
+          } satisfies Trip,
+        }
+      : { reason: mocks.activeTripReason, tripId: "trip:old" },
+  ),
 }));
 vi.mock("../db/repositories/travellers-repository", () => ({ listTravellers: vi.fn().mockResolvedValue([{
   id: "traveller:seb", name: "Seb", travellerType: "child", defaultIncluded: true,
@@ -36,6 +49,7 @@ import { DashboardScreen } from "../features/dashboard/DashboardScreen";
 
 describe("DashboardScreen readiness", () => {
   beforeEach(() => {
+    mocks.activeTripReason = "ready";
     mocks.items = [packingItem("Passport", "essential", "needed", "bag:cabin")];
     mocks.suggestionCount = 0;
   });
@@ -59,6 +73,14 @@ describe("DashboardScreen readiness", () => {
     render(<MemoryRouter><DashboardScreen /></MemoryRouter>);
     await screen.findByText("Essentials missing");
     expect(screen.queryByRole("heading", { name: "Trip suggestions are available" })).not.toBeInTheDocument();
+  });
+
+  it("renders active trip recovery when the stored trip is gone", async () => {
+    mocks.activeTripReason = "not-found";
+    render(<MemoryRouter><DashboardScreen /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "Active trip was removed" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View trips" })).toHaveAttribute("href", "/trips");
   });
 });
 

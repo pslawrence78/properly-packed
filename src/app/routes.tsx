@@ -111,6 +111,13 @@ export const appRoutes: AppRoute[] = [
     element: <TravellersScreen />,
   },
   {
+    path: "/pack",
+    title: "Packing List",
+    description: "Add, edit and check off packing items for the active trip.",
+    comingLater: ["Bags", "Templates", "Dependencies"],
+    element: <PackingListScreen />,
+  },
+  {
     path: "/trips/:tripId/pack",
     title: "Packing List",
     description: "Add, edit and check off packing items.",

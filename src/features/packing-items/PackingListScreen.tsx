@@ -12,7 +12,7 @@ import {
   updatePackingItem,
   updatePackingItemStatus,
 } from "../../db/repositories/packing-items-repository";
-import { getTrip } from "../../db/repositories/trips-repository";
+import { getTrip, resolveActiveTrip } from "../../db/repositories/trips-repository";
 import { listTravellers } from "../../db/repositories/travellers-repository";
 import type { Bag, PackingItem, Traveller } from "../../db/types";
 import { useAsyncData } from "../../hooks/use-async-data";
@@ -59,15 +59,21 @@ export function PackingListScreen() {
   const packingData = useAsyncData(async () => {
     await ensureDatabaseReady();
 
-    if (!tripId) {
-      throw new Error("Trip not found.");
+    let resolvedTripId = tripId;
+    if (!resolvedTripId) {
+      const activeTrip = await resolveActiveTrip();
+      resolvedTripId = activeTrip.reason === "ready" ? activeTrip.trip.id : undefined;
+    }
+
+    if (!resolvedTripId) {
+      throw new Error("No active trip.");
     }
 
     const [trip, travellers, items, bags, categorySetting] = await Promise.all([
-      getTrip(tripId),
+      getTrip(resolvedTripId),
       listTravellers(),
-      listPackingItemsForTrip(tripId),
-      listBagsForTrip(tripId),
+      listPackingItemsForTrip(resolvedTripId),
+      listBagsForTrip(resolvedTripId),
       getSetting("defaultCategories"),
     ]);
 
@@ -95,6 +101,7 @@ export function PackingListScreen() {
       UNASSIGNED_BAG_FILTER,
       ...packingData.data.bags.map((bag) => bag.id),
     ]);
+    const validCategories = new Set(packingData.data.categories);
     setFilters((current) => ({
       ...current,
       ownerTravellerId:
@@ -102,6 +109,10 @@ export function PackingListScreen() {
           ? ""
           : current.ownerTravellerId,
       bagId: current.bagId && !validBags.has(current.bagId) ? "" : current.bagId,
+      category:
+        current.category && !validCategories.has(current.category)
+          ? ""
+          : current.category,
     }));
   }, [packingData]);
 
@@ -204,8 +215,20 @@ export function PackingListScreen() {
         <PackingStatus message="Loading packing list..." />
       ) : null}
       {packingData.state === "error" ? (
-        packingData.error === "Trip not found." ? (
-          <TripNotFoundState />
+        packingData.error === "Trip not found." ||
+        packingData.error === "No active trip." ? (
+          <TripNotFoundState
+            title={
+              packingData.error === "No active trip."
+                ? "Select a trip to pack"
+                : undefined
+            }
+            message={
+              packingData.error === "No active trip."
+                ? "Pack uses your active trip when no trip link is supplied. Select an existing trip or create a new one to continue."
+                : undefined
+            }
+          />
         ) : (
           <PackingStatus message={packingData.error} />
         )
@@ -336,7 +359,13 @@ export function PackingListScreen() {
             travellers={packingData.data.travellers}
           />
 
-          <PackViewSwitcher value={viewMode} onChange={setViewMode} />
+          <PackViewSwitcher
+            value={viewMode}
+            onChange={(nextMode) => {
+              setQuickAddContextOverride(undefined);
+              setViewMode(nextMode);
+            }}
+          />
 
           {packingData.data.items.length === 0 ? (
             <section className="rounded-lg border border-charcoal/10 bg-paper p-5 shadow-soft sm:p-6">

@@ -15,6 +15,7 @@ import {
   type ProperlyPackedExport,
 } from "./export-schema";
 import { contextOptionTypes, normaliseContextLabel } from "../../db/context-options";
+import { resolveActiveTrip } from "../../db/repositories/trips-repository";
 import type { ContextOption, ContextOptionType } from "../../db/types";
 
 const reviewLearningTypes = new Set([
@@ -410,6 +411,8 @@ export async function replaceDataFromExport(
       await db.table(tableName).bulkAdd(data.tables[tableName]);
     }
   });
+
+  await resolveActiveTrip(db);
 }
 
 export async function resetLocalData(

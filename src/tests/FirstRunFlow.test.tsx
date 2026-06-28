@@ -17,6 +17,7 @@ vi.mock("../db/repositories/trips-repository", () => ({
   createTrip: vi.fn(),
   getTrip: vi.fn().mockResolvedValue(undefined),
   listTrips: vi.fn().mockResolvedValue([]),
+  resolveActiveTrip: vi.fn().mockResolvedValue({ reason: "none" }),
 }));
 vi.mock("../db/repositories/travellers-repository", () => ({
   listTravellers: vi.fn(async () => [...mocks.travellers]),

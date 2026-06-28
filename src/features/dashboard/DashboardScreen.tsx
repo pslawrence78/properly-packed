@@ -16,7 +16,6 @@ import {
 import { Link } from "react-router-dom";
 import { FirstRunEmptyState } from "../../components/empty-states/FirstRunEmptyState";
 import { ensureDatabaseReady } from "../../db";
-import { getActiveTripId } from "../../db/repositories/app-settings-repository";
 import { listBagsForTrip } from "../../db/repositories/bags-repository";
 import { findMissingDependencies } from "../../db/repositories/gadget-bundles-repository";
 import {
@@ -26,7 +25,7 @@ import {
 import { listPackingItemsForTrip } from "../../db/repositories/packing-items-repository";
 import { listPreTripTasksForTrip } from "../../db/repositories/pre-trip-tasks-repository";
 import { previewStarterPack } from "../../db/repositories/starter-pack-repository";
-import { getTrip, listTrips } from "../../db/repositories/trips-repository";
+import { getTrip, listTrips, resolveActiveTrip } from "../../db/repositories/trips-repository";
 import { listTravellers } from "../../db/repositories/travellers-repository";
 import type { PackingItem } from "../../db/types";
 import { useAsyncData } from "../../hooks/use-async-data";
@@ -38,16 +37,18 @@ import {
 export function DashboardScreen() {
   const dashboard = useAsyncData(async () => {
     await ensureDatabaseReady();
-    const [activeTripId, trips, travellers] = await Promise.all([
-      getActiveTripId(),
+    const [activeTripResolution, trips, travellers] = await Promise.all([
+      resolveActiveTrip(),
       listTrips(),
       listTravellers(),
     ]);
-    const activeTrip = activeTripId ? await getTrip(activeTripId) : undefined;
+    const activeTrip =
+      activeTripResolution.reason === "ready" ? activeTripResolution.trip : undefined;
 
     if (!activeTrip) {
       return {
         activeTrip,
+        recoveryReason: activeTripResolution.reason,
         travellerCount: travellers.length,
         tripCount: trips.length,
       };
@@ -116,10 +117,10 @@ export function DashboardScreen() {
       <section className="rounded-lg border border-charcoal/10 bg-paper p-5 shadow-soft sm:p-6">
         <p className="text-sm font-semibold uppercase text-teal">Active trip</p>
           <h2 className="mt-3 text-2xl font-semibold text-charcoal">
-            No active trip yet
+            {getActiveTripRecoveryTitle(dashboard.data.recoveryReason)}
           </h2>
           <p className="mt-2 text-sm leading-6 text-charcoal/70">
-            Create a trip, or mark an existing trip active from its overview.
+            {getActiveTripRecoveryMessage(dashboard.data.recoveryReason)}
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Link className="trip-action bg-slateAccent text-cream" to="/trips/new">
@@ -143,6 +144,26 @@ export function DashboardScreen() {
       ) : null}
     </section>
   );
+}
+
+function getActiveTripRecoveryTitle(reason?: string) {
+  if (reason === "not-found") return "Active trip was removed";
+  if (reason === "archived") return "Active trip is archived";
+  if (reason === "completed") return "Active trip is completed";
+  return "No active trip yet";
+}
+
+function getActiveTripRecoveryMessage(reason?: string) {
+  if (reason === "not-found") {
+    return "The saved active trip no longer exists. Select another trip or create a new one to continue.";
+  }
+  if (reason === "archived") {
+    return "The saved active trip is no longer in active planning. Select another trip or create a new one to continue.";
+  }
+  if (reason === "completed") {
+    return "The saved active trip has been completed. Select a current trip or create a new one to continue.";
+  }
+  return "Create a trip, or mark an existing trip active from its overview.";
 }
 
 function DashboardContent({

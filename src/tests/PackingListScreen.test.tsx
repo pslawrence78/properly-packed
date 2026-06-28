@@ -34,6 +34,11 @@ vi.mock("../db/repositories/trips-repository", () => ({
   getTrip: vi.fn(async () =>
     mocks.tripExists ? { id: "trip:1", name: "City break" } : undefined,
   ),
+  resolveActiveTrip: vi.fn(async () =>
+    mocks.tripExists
+      ? { reason: "ready", tripId: "trip:1", trip: { id: "trip:1", name: "City break" } }
+      : { reason: "not-found", tripId: "trip:missing" },
+  ),
 }));
 vi.mock("../db/repositories/travellers-repository", () => ({
   listTravellers: vi.fn(async () => [...mocks.travellers]),
@@ -141,6 +146,22 @@ describe("PackingListScreen", () => {
     );
   });
 
+  it("uses the active trip when no trip ID is supplied", async () => {
+    mocks.items = [packingItem("shared", "Travel insurance")];
+    renderScreen("/pack", "/pack");
+
+    expect(await screen.findByRole("heading", { name: "Travel insurance" })).toBeInTheDocument();
+  });
+
+  it("shows recovery when Pack has no route trip and no active trip", async () => {
+    mocks.tripExists = false;
+    renderScreen("/pack", "/pack");
+
+    expect(
+      await screen.findByRole("heading", { name: "Select a trip to pack" }),
+    ).toBeInTheDocument();
+  });
+
   it("reads dashboard filters, shows them, and clears them", async () => {
     const user = userEvent.setup();
     mocks.items = [
@@ -216,6 +237,26 @@ describe("PackingListScreen", () => {
         name: "Socks",
         ownershipScope: "traveller",
         ownerTravellerId: "traveller:alex",
+      }),
+    );
+  });
+
+  it("drops active group quick-add context after switching view modes", async () => {
+    const user = userEvent.setup();
+    mocks.items = [packingItem("traveller", "Passport", "traveller:alex")];
+    renderScreen();
+
+    await screen.findByRole("heading", { name: "Alex" });
+    await user.click(screen.getAllByRole("button", { name: "Add here" })[0]);
+    await user.click(screen.getByRole("button", { name: "By Category" }));
+    await user.type(screen.getByLabelText("Item name"), "Socks");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(mocks.createPackingItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Socks",
+        ownershipScope: "unassigned",
+        ownerTravellerId: undefined,
       }),
     );
   });
@@ -297,11 +338,11 @@ describe("PackingListScreen", () => {
   });
 });
 
-function renderScreen(path = "/trips/trip:1/pack") {
+function renderScreen(path = "/trips/trip:1/pack", routePath = "/trips/:tripId/pack") {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route path="/trips/:tripId/pack" element={<PackingListScreen />} />
+        <Route path={routePath} element={<PackingListScreen />} />
       </Routes>
     </MemoryRouter>,
   );

@@ -22,7 +22,7 @@ export type TripInput = {
 export async function listTrips(db: ProperlyPackedDatabase = appDb) {
   const trips = await db.trips.toArray();
   return trips
-    .filter((trip) => !trip.archivedAt)
+    .filter((trip) => !trip.archivedAt && trip.status !== "archived")
     .sort((a, b) => b.startDate.localeCompare(a.startDate));
 }
 
@@ -31,8 +31,44 @@ export async function getTrip(id: string, db: ProperlyPackedDatabase = appDb) {
 }
 
 export async function getActiveTrip(db: ProperlyPackedDatabase = appDb) {
+  const activeTrip = await resolveActiveTrip(db);
+  return activeTrip.trip;
+}
+
+export type ActiveTripResolution =
+  | { reason: "none"; trip?: undefined; tripId?: undefined }
+  | { reason: "ready"; trip: Trip; tripId: string }
+  | {
+      reason: "archived" | "completed" | "not-found";
+      trip?: undefined;
+      tripId: string;
+    };
+
+export async function resolveActiveTrip(
+  db: ProperlyPackedDatabase = appDb,
+): Promise<ActiveTripResolution> {
   const activeTripId = await getActiveTripId(db);
-  return activeTripId ? getTrip(activeTripId, db) : undefined;
+  if (!activeTripId) {
+    return { reason: "none" };
+  }
+
+  const trip = await getTrip(activeTripId, db);
+  if (!trip) {
+    await clearActiveTripId(db);
+    return { reason: "not-found", tripId: activeTripId };
+  }
+
+  if (trip.archivedAt || trip.status === "archived") {
+    await clearActiveTripId(db);
+    return { reason: "archived", tripId: activeTripId };
+  }
+
+  if (trip.status === "completed") {
+    await clearActiveTripId(db);
+    return { reason: "completed", tripId: activeTripId };
+  }
+
+  return { reason: "ready", trip, tripId: trip.id };
 }
 
 export async function createTrip(

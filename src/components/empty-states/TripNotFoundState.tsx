@@ -1,6 +1,12 @@
 import { Link } from "react-router-dom";
 
-export function TripNotFoundState() {
+export function TripNotFoundState({
+  message = "This trip may have been removed, or the link may be out of date. Select an existing trip or create a new one to continue.",
+  title = "Trip not found",
+}: {
+  message?: string;
+  title?: string;
+}) {
   return (
     <section
       className="rounded-lg border border-charcoal/10 bg-paper p-5 shadow-soft sm:p-7"
@@ -10,11 +16,10 @@ export function TripNotFoundState() {
         Trip unavailable
       </p>
       <h1 className="mt-3 text-3xl font-bold tracking-normal text-charcoal">
-        Trip not found
+        {title}
       </h1>
       <p className="mt-3 max-w-2xl text-base leading-7 text-charcoal/75">
-        This trip may have been removed, or the link may be out of date. Select an
-        existing trip or create a new one to continue.
+        {message}
       </p>
       <div className="mt-5 flex flex-wrap gap-3">
         <Link className="trip-action" to="/trips">

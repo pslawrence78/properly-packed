@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { ProperlyPackedDatabase } from "../db";
+import { getActiveTripId, setActiveTripId } from "../db/repositories/app-settings-repository";
 import {
   archiveTrip,
   createTrip,
   duplicateTripShell,
   getTrip,
   listTrips,
+  resolveActiveTrip,
   updateTrip,
 } from "../db/repositories/trips-repository";
 
@@ -108,5 +110,65 @@ describe("trips repository", () => {
       travellerIds: ["traveller:1"],
       status: "draft",
     }, db)).resolves.toMatchObject({ activityContextIds: ["context:pool"] });
+  });
+
+  it("recovers when the active trip points to a missing trip", async () => {
+    const db = createTestDatabase();
+    await setActiveTripId("trip:missing", db);
+
+    await expect(resolveActiveTrip(db)).resolves.toMatchObject({
+      reason: "not-found",
+      tripId: "trip:missing",
+    });
+    await expect(getActiveTripId(db)).resolves.toBeUndefined();
+  });
+
+  it("recovers when the active trip is archived or completed", async () => {
+    const db = createTestDatabase();
+    const archived = await createTrip({
+      name: "Old trip",
+      tripType: "beach-holiday",
+      startDate: "2026-07-01",
+      endDate: "2026-07-08",
+      nights: 7,
+      destinations: [],
+      climateContextIds: [],
+      accommodationContextIds: [],
+      transportContextIds: [],
+      activityContextIds: [],
+      travellerIds: ["traveller:1"],
+      status: "planning",
+    }, db);
+    const completed = await createTrip({
+      name: "Completed trip",
+      tripType: "staycation",
+      startDate: "2026-05-01",
+      endDate: "2026-05-08",
+      nights: 7,
+      destinations: [],
+      climateContextIds: [],
+      accommodationContextIds: [],
+      transportContextIds: [],
+      activityContextIds: [],
+      travellerIds: ["traveller:1"],
+      status: "completed",
+    }, db);
+
+    await db.trips.update(archived.id, {
+      archivedAt: "2026-06-28T00:00:00.000Z",
+    });
+    await setActiveTripId(archived.id, db);
+    await expect(resolveActiveTrip(db)).resolves.toMatchObject({
+      reason: "archived",
+      tripId: archived.id,
+    });
+    await expect(getActiveTripId(db)).resolves.toBeUndefined();
+
+    await setActiveTripId(completed.id, db);
+    await expect(resolveActiveTrip(db)).resolves.toMatchObject({
+      reason: "completed",
+      tripId: completed.id,
+    });
+    await expect(getActiveTripId(db)).resolves.toBeUndefined();
   });
 });
