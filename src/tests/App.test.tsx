@@ -58,7 +58,7 @@ describe("Properly Packed app shell", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "Settings" }),
     ).toBeInTheDocument();
-    expect(APP_VERSION).toBe("0.29.0");
+    expect(APP_VERSION).toBe("0.30.0");
     expect(screen.getAllByText(`v${APP_VERSION}`).length).toBeGreaterThan(0);
     expect(screen.getByText(APP_RELEASE_LABEL)).toBeInTheDocument();
     expect(screen.getByText("Export schema")).toBeInTheDocument();

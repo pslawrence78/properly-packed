@@ -17,6 +17,7 @@ import { listTravellers } from "../../db/repositories/travellers-repository";
 import type { Bag, PackingItem, Traveller } from "../../db/types";
 import { useAsyncData } from "../../hooks/use-async-data";
 import { PackingItemForm } from "./PackingItemForm";
+import { BulkAddPackingItems } from "./BulkAddPackingItems";
 import { QuickAddPackingItem } from "./QuickAddPackingItem";
 import {
   calculatePackingProgress,
@@ -43,6 +44,7 @@ export function PackingListScreen() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [refreshKey, setRefreshKey] = useState(0);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [quickAddFocusRequest, setQuickAddFocusRequest] = useState(0);
   const [quickAddContextOverride, setQuickAddContextOverride] =
     useState<QuickAddContextDefault>();
@@ -175,6 +177,17 @@ export function PackingListScreen() {
     setRefreshKey((key) => key + 1);
   }
 
+  async function createBulkPackingItems(
+    inputs: Parameters<typeof createPackingItem>[0][],
+  ) {
+    for (const input of inputs) {
+      await createPackingItem(input);
+    }
+    setShowBulkAdd(false);
+    setQuickAddContextOverride(undefined);
+    setRefreshKey((key) => key + 1);
+  }
+
   function clearFilters() {
     setFilters(emptyPackingFilters());
     setSearchParams({});
@@ -214,6 +227,13 @@ export function PackingListScreen() {
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
+                <button
+                  className="min-h-11 rounded-lg bg-teal px-4 py-3 text-sm font-semibold text-cream shadow-soft"
+                  onClick={() => setShowBulkAdd((visible) => !visible)}
+                  type="button"
+                >
+                  {showBulkAdd ? "Close bulk add" : "Bulk add"}
+                </button>
                 <button
                   className="min-h-11 rounded-lg bg-slateAccent px-4 py-3 text-sm font-semibold text-cream shadow-soft"
                   onClick={() => setShowAddForm((visible) => !visible)}
@@ -268,6 +288,19 @@ export function PackingListScreen() {
             travellers={packingData.data.travellers}
             tripId={packingData.data.trip.id}
           />
+
+          {showBulkAdd ? (
+            <BulkAddPackingItems
+              bags={packingData.data.bags}
+              categories={packingData.data.categories}
+              existingItems={packingData.data.items}
+              quickAddContext={quickAddContext}
+              travellers={packingData.data.travellers}
+              tripId={packingData.data.trip.id}
+              onCancel={() => setShowBulkAdd(false)}
+              onCommit={createBulkPackingItems}
+            />
+          ) : null}
 
           {showAddForm ? (
             <PackingItemForm

@@ -7,6 +7,17 @@ import type { Bag, PackingItem, Traveller } from "../db/types";
 const mocks = vi.hoisted(() => ({
   items: [] as PackingItem[],
   bags: [] as Bag[],
+  categories: ["documents", "misc"] as string[],
+  travellers: [
+    {
+      id: "traveller:alex",
+      name: "Alex",
+      travellerType: "adult",
+      defaultIncluded: true,
+      createdAt: "2026-06-18T00:00:00.000Z",
+      updatedAt: "2026-06-18T00:00:00.000Z",
+    } satisfies Traveller,
+  ] as Traveller[],
   tripExists: true,
   createPackingItem: vi.fn().mockResolvedValue(undefined),
   updatePackingItemStatus: vi.fn().mockResolvedValue(undefined),
@@ -14,7 +25,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../db", () => ({ ensureDatabaseReady: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("../db/repositories/app-settings-repository", () => ({
-  getSetting: vi.fn().mockResolvedValue({ value: ["documents", "misc"] }),
+  getSetting: vi.fn(async () => ({ value: [...mocks.categories] })),
 }));
 vi.mock("../db/repositories/bags-repository", () => ({
   listBagsForTrip: vi.fn(async () => [...mocks.bags]),
@@ -25,16 +36,7 @@ vi.mock("../db/repositories/trips-repository", () => ({
   ),
 }));
 vi.mock("../db/repositories/travellers-repository", () => ({
-  listTravellers: vi.fn().mockResolvedValue([
-    {
-      id: "traveller:alex",
-      name: "Alex",
-      travellerType: "adult",
-      defaultIncluded: true,
-      createdAt: "2026-06-18T00:00:00.000Z",
-      updatedAt: "2026-06-18T00:00:00.000Z",
-    } satisfies Traveller,
-  ]),
+  listTravellers: vi.fn(async () => [...mocks.travellers]),
 }));
 vi.mock("../db/repositories/packing-items-repository", () => ({
   archivePackingItem: vi.fn().mockResolvedValue(undefined),
@@ -50,6 +52,17 @@ describe("PackingListScreen", () => {
   beforeEach(() => {
     mocks.items = [];
     mocks.bags = [];
+    mocks.categories = ["documents", "misc"];
+    mocks.travellers = [
+      {
+        id: "traveller:alex",
+        name: "Alex",
+        travellerType: "adult",
+        defaultIncluded: true,
+        createdAt: "2026-06-18T00:00:00.000Z",
+        updatedAt: "2026-06-18T00:00:00.000Z",
+      },
+    ];
     mocks.tripExists = true;
     mocks.createPackingItem.mockClear();
     mocks.updatePackingItemStatus.mockClear();
@@ -213,6 +226,75 @@ describe("PackingListScreen", () => {
     expect(await screen.findByRole("heading", { name: "Travel insurance" })).toBeInTheDocument();
     expect(screen.getByLabelText("Status")).toHaveValue("");
   });
+
+  it("opens bulk add, previews pasted lines with warnings, and commits included edits", async () => {
+    const user = userEvent.setup();
+    mocks.categories = ["documents", "electronics", "health", "misc"];
+    mocks.bags = [bag("bag:gadget", "Gadget bag")];
+    mocks.travellers = [
+      traveller("traveller:seb", "Seb", "child"),
+      traveller("traveller:phil", "Phil", "adult"),
+      traveller("traveller:shared", "Shared Family", "adult"),
+    ];
+    renderScreen();
+
+    await user.click(await screen.findByRole("button", { name: "Bulk add" }));
+    await user.type(
+      screen.getByLabelText("Packing list"),
+      "Seb: swim goggles\nPhil: power bank / to charge / gadget bag\nMorgan: mystery item / unknown pouch",
+    );
+    await user.click(screen.getByRole("button", { name: "Preview items" }));
+
+    expect(await screen.findByText("Morgan: mystery item / unknown pouch")).toBeInTheDocument();
+    expect(screen.getByText(/Unknown owner "Morgan"/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add 2 items" })).toBeInTheDocument();
+
+    await user.click(screen.getAllByRole("button", { name: "Included" })[0]);
+    await user.clear(screen.getAllByLabelText("Item name")[2]);
+    await user.type(screen.getAllByLabelText("Item name")[2], "large power bank");
+    await user.click(screen.getByRole("button", { name: "Add 1 items" }));
+
+    expect(mocks.createPackingItem).toHaveBeenCalledTimes(1);
+    expect(mocks.createPackingItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "large power bank",
+        ownerTravellerId: "traveller:phil",
+        status: "to-charge",
+        bagId: "bag:gadget",
+      }),
+    );
+  });
+
+  it("does not create items when bulk add is cancelled", async () => {
+    const user = userEvent.setup();
+    renderScreen();
+
+    await user.click(await screen.findByRole("button", { name: "Bulk add" }));
+    await user.type(screen.getByLabelText("Packing list"), "passport");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(mocks.createPackingItem).not.toHaveBeenCalled();
+  });
+
+  it("defaults duplicate bulk rows to skipped", async () => {
+    const user = userEvent.setup();
+    mocks.travellers = [traveller("traveller:shared", "Shared Family", "adult")];
+    mocks.items = [
+      {
+        ...packingItem("traveller", "Passport", "traveller:shared"),
+        category: "documents",
+      },
+    ];
+    renderScreen();
+
+    await user.click(await screen.findByRole("button", { name: "Bulk add" }));
+    await user.type(screen.getByLabelText("Packing list"), "Shared Family: Passport");
+    await user.click(screen.getByRole("button", { name: "Preview items" }));
+
+    expect(await screen.findByText(/Matches existing item "Passport"/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Skipped" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add 0 items" })).toBeInTheDocument();
+  });
 });
 
 function renderScreen(path = "/trips/trip:1/pack") {
@@ -244,6 +326,21 @@ function packingItem(
     dependencyItemIds: [],
     source: "manual",
     forgottenRisk: false,
+    createdAt: "2026-06-18T00:00:00.000Z",
+    updatedAt: "2026-06-18T00:00:00.000Z",
+  };
+}
+
+function traveller(
+  id: string,
+  name: string,
+  travellerType: Traveller["travellerType"],
+): Traveller {
+  return {
+    id,
+    name,
+    travellerType,
+    defaultIncluded: true,
     createdAt: "2026-06-18T00:00:00.000Z",
     updatedAt: "2026-06-18T00:00:00.000Z",
   };
