@@ -1,5 +1,5 @@
 // Increment the app version once per completed implementation tranche.
-export const APP_VERSION = "0.32.1";
+export const APP_VERSION = "0.32.2";
 export const APP_NAME = "Properly Packed";
 export const APP_TAGLINE = "Family travel packing, without the forgotten bits.";
 export const APP_RELEASE_LABEL = "v1.0 Candidate";

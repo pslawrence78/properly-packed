@@ -4,11 +4,11 @@ Family travel packing, without the forgotten bits.
 
 ## Current Release
 
-Version 0.32.1 closes the packing autocomplete corpus tranche. The local,
-deterministic packing corpus now covers 500+ curated items for clothing,
-toiletries, gadgets, children's kit, travel extras, cruise, beach, theme park
-and dog-friendly packing, while Quick Add and Bulk Add continue to use the same
-local search/enrichment flow.
+Version 0.32.2 closes the packing list scroll-position tranche. Routine in-place
+packing actions now update the local list state directly so marking packed, not
+taking, changing status or quick-adding no longer forces the list back through a
+full reload. See `docs/35B-packing-list-scroll-position-and-action-audit-v0.1.md`
+for the audit table, validation notes and any remaining limitations.
 
 The app remains local-first and testable. IndexedDB stays at v5, the export
 schema stays at v2 and the seed data stays at v0.12.0.

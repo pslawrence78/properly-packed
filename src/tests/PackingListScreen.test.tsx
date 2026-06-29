@@ -19,7 +19,8 @@ const mocks = vi.hoisted(() => ({
     } satisfies Traveller,
   ] as Traveller[],
   tripExists: true,
-  createPackingItem: vi.fn().mockResolvedValue(undefined),
+  createPackingItem: vi.fn(async (input: any) => createdPackingItem(input)),
+  listPackingItemsForTrip: vi.fn(async () => [...mocks.items]),
   updatePackingItemStatus: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -46,7 +47,7 @@ vi.mock("../db/repositories/travellers-repository", () => ({
 vi.mock("../db/repositories/packing-items-repository", () => ({
   archivePackingItem: vi.fn().mockResolvedValue(undefined),
   createPackingItem: mocks.createPackingItem,
-  listPackingItemsForTrip: vi.fn(async () => [...mocks.items]),
+  listPackingItemsForTrip: mocks.listPackingItemsForTrip,
   updatePackingItem: vi.fn().mockResolvedValue(undefined),
   updatePackingItemStatus: mocks.updatePackingItemStatus,
 }));
@@ -70,6 +71,7 @@ describe("PackingListScreen", () => {
     ];
     mocks.tripExists = true;
     mocks.createPackingItem.mockClear();
+    mocks.listPackingItemsForTrip.mockClear();
     mocks.updatePackingItemStatus.mockClear();
   });
 
@@ -213,13 +215,27 @@ describe("PackingListScreen", () => {
     expect(screen.getByRole("heading", { name: "All items" })).toBeInTheDocument();
   });
 
-  it("marks an item packed from a grouped view", async () => {
+  it("marks an item packed from mid-list without reloading the list tree", async () => {
     const user = userEvent.setup();
-    mocks.items = [packingItem("traveller", "Passport", "traveller:alex")];
-    renderScreen();
+    mocks.items = createLongPackingItems(30).map((item) => ({
+      ...item,
+      ownershipScope: "traveller",
+      ownerTravellerId: "traveller:alex",
+    }));
+    renderScreen("/trips/trip:1/pack?status=needed&outstanding=true");
 
-    await user.click(await screen.findByRole("button", { name: "Mark Passport packed" }));
-    expect(mocks.updatePackingItemStatus).toHaveBeenCalledWith("item:Passport", "packed");
+    expect(await screen.findByRole("heading", { name: "Item 01" })).toBeInTheDocument();
+    expect(mocks.listPackingItemsForTrip).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "Mark Item 15 packed" }));
+
+    expect(mocks.updatePackingItemStatus).toHaveBeenCalledWith("item:Item 15", "packed");
+    expect(mocks.listPackingItemsForTrip).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Loading packing list...")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Status")).toHaveValue("needed");
+    expect(screen.getByLabelText("Outstanding items only")).toBeChecked();
+    expect(screen.getByRole("heading", { name: "Item 16" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mark Item 15 packed" })).not.toBeInTheDocument();
   });
 
   it("quick add uses the active group context safely", async () => {
@@ -239,6 +255,34 @@ describe("PackingListScreen", () => {
         ownerTravellerId: "traveller:alex",
       }),
     );
+  });
+
+  it("quick add inserts an item without refetching the packing list", async () => {
+    const user = userEvent.setup();
+    mocks.items = createLongPackingItems(30).map((item) => ({
+      ...item,
+      ownershipScope: "traveller",
+      ownerTravellerId: "traveller:alex",
+    }));
+    renderScreen();
+
+    expect(await screen.findByRole("heading", { name: "Alex" })).toBeInTheDocument();
+    expect(mocks.listPackingItemsForTrip).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getAllByRole("button", { name: "Add here" })[0]);
+    await user.type(screen.getByLabelText("Item name"), "Socks");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(mocks.createPackingItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Socks",
+        ownershipScope: "traveller",
+        ownerTravellerId: "traveller:alex",
+      }),
+    );
+    expect(mocks.listPackingItemsForTrip).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Loading packing list...")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Socks" })).toBeInTheDocument();
   });
 
   it("drops active group quick-add context after switching view modes", async () => {
@@ -396,6 +440,39 @@ function bag(id: string, name: string): Bag {
     isHandLuggage: false,
     isTravelDay: false,
     isCruiseEmbarkation: false,
+    createdAt: "2026-06-18T00:00:00.000Z",
+    updatedAt: "2026-06-18T00:00:00.000Z",
+  };
+}
+
+function createLongPackingItems(count: number) {
+  return Array.from({ length: count }, (_, index) =>
+    packingItem(
+      "traveller",
+      `Item ${String(index + 1).padStart(2, "0")}`,
+      "traveller:alex",
+    ),
+  );
+}
+
+function createdPackingItem(input: any): PackingItem {
+  return {
+    id: `item:${input.name}`,
+    tripId: input.tripId,
+    name: input.name,
+    ownershipScope: input.ownershipScope,
+    ownerTravellerId: input.ownerTravellerId,
+    responsibleTravellerId: input.responsibleTravellerId,
+    category: input.category,
+    quantity: input.quantity,
+    priority: input.priority,
+    status: input.status,
+    bagId: input.bagId,
+    notes: input.notes,
+    flags: [],
+    dependencyItemIds: [],
+    source: "manual",
+    forgottenRisk: false,
     createdAt: "2026-06-18T00:00:00.000Z",
     updatedAt: "2026-06-18T00:00:00.000Z",
   };

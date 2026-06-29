@@ -42,7 +42,6 @@ import { getBagName } from "../bags/bag-utils";
 export function PackingListScreen() {
   const { tripId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [refreshKey, setRefreshKey] = useState(0);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [quickAddFocusRequest, setQuickAddFocusRequest] = useState(0);
@@ -51,6 +50,7 @@ export function PackingListScreen() {
   const [editingItemId, setEditingItemId] = useState<string | undefined>();
   const [filters, setFilters] = useState<PackingFilters>(emptyPackingFilters);
   const [viewMode, setViewMode] = useState<PackViewMode>("person");
+  const [packingItems, setPackingItems] = useState<PackingItem[]>([]);
 
   useEffect(() => {
     setFilters(packingFiltersFromSearchParams(searchParams));
@@ -88,7 +88,13 @@ export function PackingListScreen() {
       : [];
 
     return { trip, travellers, items, bags, categories };
-  }, [tripId, refreshKey]);
+  }, [tripId]);
+
+  useEffect(() => {
+    if (packingData.state === "ready") {
+      setPackingItems(packingData.data.items);
+    }
+  }, [packingData]);
 
   useEffect(() => {
     if (packingData.state !== "ready") return;
@@ -122,19 +128,15 @@ export function PackingListScreen() {
     }
 
     return filterPackingItems(
-      packingData.data.items,
+      packingItems,
       filters,
       packingData.data.bags,
     );
-  }, [filters, packingData]);
+  }, [filters, packingData, packingItems]);
 
   const progress = useMemo(() => {
-    if (packingData.state !== "ready") {
-      return calculatePackingProgress([]);
-    }
-
-    return calculatePackingProgress(packingData.data.items);
-  }, [packingData]);
+    return calculatePackingProgress(packingItems);
+  }, [packingItems]);
 
   const quickAddOwnership = useMemo(() => {
     if (packingData.state !== "ready") {
@@ -175,28 +177,79 @@ export function PackingListScreen() {
     });
   }, [filteredItems, packingData, viewMode]);
 
-  async function refreshAfter(action: Promise<unknown>) {
-    await action;
+  function setPackingItemsFromMutation(nextItem: PackingItem) {
+    setPackingItems((current) =>
+      sortPackingItems(
+        current.map((item) => (item.id === nextItem.id ? nextItem : item)),
+      ),
+    );
+  }
+
+  function addPackingItem(nextItem: PackingItem) {
+    setPackingItems((current) =>
+      sortPackingItems([...current.filter((item) => item.id !== nextItem.id), nextItem]),
+    );
+  }
+
+  function removePackingItem(itemId: string) {
+    setPackingItems((current) => current.filter((item) => item.id !== itemId));
+  }
+
+  async function createPackingItemInPlace(input: Parameters<typeof createPackingItem>[0]) {
+    const createdItem = await createPackingItem(input);
+    addPackingItem(createdItem);
+    return createdItem;
+  }
+
+  async function submitQuickAdd(input: Parameters<typeof createPackingItem>[0]) {
+    await createPackingItemInPlace(input);
+    setQuickAddContextOverride(undefined);
+  }
+
+  async function submitDetailedAdd(
+    input: Parameters<typeof createPackingItem>[0],
+  ) {
+    await createPackingItemInPlace(input);
     setShowAddForm(false);
     setEditingItemId(undefined);
-    setRefreshKey((key) => key + 1);
   }
 
-  async function refreshAfterQuickAdd(action: Promise<unknown>) {
-    await action;
-    setQuickAddContextOverride(undefined);
-    setRefreshKey((key) => key + 1);
+  async function submitPackingEdit(
+    item: PackingItem,
+    input: Parameters<typeof updatePackingItem>[1],
+  ) {
+    const updatedItem =
+      (await updatePackingItem(item.id, input)) ??
+      applyPackingItemInput(item, input);
+    setPackingItemsFromMutation(updatedItem);
+    setEditingItemId(undefined);
   }
 
-  async function createBulkPackingItems(
+  async function submitPackingStatus(
+    item: PackingItem,
+    status: PackingItem["status"],
+  ) {
+    await updatePackingItemStatus(item.id, status);
+    setPackingItemsFromMutation({
+      ...item,
+      status,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  async function submitPackingArchive(item: PackingItem) {
+    await archivePackingItem(item.id);
+    removePackingItem(item.id);
+  }
+
+  async function submitBulkPackingItems(
     inputs: Parameters<typeof createPackingItem>[0][],
   ) {
     for (const input of inputs) {
-      await createPackingItem(input);
+      await createPackingItemInPlace(input);
     }
     setShowBulkAdd(false);
     setQuickAddContextOverride(undefined);
-    setRefreshKey((key) => key + 1);
   }
 
   function clearFilters() {
@@ -304,12 +357,10 @@ export function PackingListScreen() {
           <QuickAddPackingItem
             categories={packingData.data.categories}
             defaultContext={quickAddContext}
-            existingItems={packingData.data.items}
+            existingItems={packingItems}
             focusRequest={quickAddFocusRequest}
             key={`${quickAddContext.ownershipScope}:${quickAddContext.ownerTravellerId ?? ""}:${quickAddContext.category ?? ""}:${quickAddContext.bagId ?? ""}:${quickAddContext.status ?? ""}`}
-            onSubmit={(input) =>
-              refreshAfterQuickAdd(createPackingItem(input))
-            }
+            onSubmit={submitQuickAdd}
             travellers={packingData.data.travellers}
             tripId={packingData.data.trip.id}
           />
@@ -318,12 +369,12 @@ export function PackingListScreen() {
             <BulkAddPackingItems
               bags={packingData.data.bags}
               categories={packingData.data.categories}
-              existingItems={packingData.data.items}
+              existingItems={packingItems}
               quickAddContext={quickAddContext}
               travellers={packingData.data.travellers}
               tripId={packingData.data.trip.id}
               onCancel={() => setShowBulkAdd(false)}
-              onCommit={createBulkPackingItems}
+              onCommit={submitBulkPackingItems}
             />
           ) : null}
 
@@ -331,21 +382,19 @@ export function PackingListScreen() {
             <PackingItemForm
               bags={packingData.data.bags}
               categories={packingData.data.categories}
-              initialDefaults={
-                {
-                  ownershipScope: quickAddContext.ownershipScope,
-                  ownerTravellerId: quickAddContext.ownerTravellerId,
-                  category: quickAddContext.category ?? "misc",
-                  priority: "important",
-                  status: quickAddContext.status ?? "needed",
-                  bagId: quickAddContext.bagId,
-                }
-              }
+              initialDefaults={{
+                ownershipScope: quickAddContext.ownershipScope,
+                ownerTravellerId: quickAddContext.ownerTravellerId,
+                category: quickAddContext.category ?? "misc",
+                priority: "important",
+                status: quickAddContext.status ?? "needed",
+                bagId: quickAddContext.bagId,
+              }}
               travellers={packingData.data.travellers}
               tripId={packingData.data.trip.id}
               submitLabel="Add item"
               onCancel={() => setShowAddForm(false)}
-              onSubmit={(input) => refreshAfter(createPackingItem(input))}
+              onSubmit={submitDetailedAdd}
             />
           ) : null}
 
@@ -369,7 +418,7 @@ export function PackingListScreen() {
             }}
           />
 
-          {packingData.data.items.length === 0 ? (
+          {packingItems.length === 0 ? (
             <section className="rounded-lg border border-charcoal/10 bg-paper p-5 shadow-soft sm:p-6">
               <h2 className="text-xl font-semibold text-charcoal">
                 No packing items yet
@@ -419,17 +468,15 @@ export function PackingListScreen() {
                     `Archive "${item.name}"? It will be removed from this packing list.`,
                   )
                 ) {
-                  void refreshAfter(archivePackingItem(item.id));
+                  void submitPackingArchive(item);
                 }
               }}
               onEdit={setEditingItemId}
               onQuickAdd={focusQuickAdd}
               onStatus={(item, status) =>
-                refreshAfter(updatePackingItemStatus(item.id, status))
+                void submitPackingStatus(item, status)
               }
-              onSubmitEdit={(item, input) =>
-                refreshAfter(updatePackingItem(item.id, input))
-              }
+              onSubmitEdit={submitPackingEdit}
               onCancelEdit={() => setEditingItemId(undefined)}
               travellers={packingData.data.travellers}
               tripId={packingData.data.trip.id}
@@ -440,6 +487,38 @@ export function PackingListScreen() {
       ) : null}
     </section>
   );
+}
+
+function sortPackingItems(items: PackingItem[]) {
+  return [...items].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function applyPackingItemInput(
+  item: PackingItem,
+  input: Parameters<typeof updatePackingItem>[1],
+) {
+  const ownershipScope =
+    input.ownershipScope ?? item.ownershipScope ?? "unassigned";
+  const ownerTravellerId =
+    ownershipScope === "traveller"
+      ? "ownerTravellerId" in input
+        ? input.ownerTravellerId
+        : item.ownerTravellerId
+      : undefined;
+
+  return {
+    ...item,
+    ...input,
+    ownershipScope,
+    ownerTravellerId,
+    responsibleTravellerId:
+      "responsibleTravellerId" in input
+        ? input.responsibleTravellerId
+        : item.responsibleTravellerId,
+    bagId: "bagId" in input ? input.bagId : item.bagId,
+    notes: "notes" in input ? input.notes : item.notes,
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 function PackingFiltersPanel({
