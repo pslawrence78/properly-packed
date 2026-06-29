@@ -2,16 +2,19 @@ import { describe, expect, it } from "vitest";
 import type { PackingItem, Traveller } from "../db/types";
 import { packingAutocompleteCorpus } from "../features/packing-items/autocomplete/packing-autocomplete-corpus";
 import { searchPackingAutocomplete } from "../features/packing-items/autocomplete/packing-autocomplete-search";
+import { normaliseAutocompleteText } from "../features/packing-items/autocomplete/packing-autocomplete-utils";
 
 const categories = [
   "clothing",
   "documents",
   "electronics",
   "health",
+  "toiletries",
   "comfort",
   "entertainment",
   "travel-day",
   "cruise-extras",
+  "swim",
   "misc",
   "pet",
   "weather",
@@ -26,12 +29,22 @@ const travellers: Traveller[] = [
 ];
 
 describe("packing autocomplete corpus", () => {
+  it("has expanded to at least 500 curated entries", () => {
+    expect(packingAutocompleteCorpus.length).toBeGreaterThanOrEqual(500);
+  });
+
   it("has unique IDs and non-empty names", () => {
     const ids = new Set<string>();
+    const normalisedNames = new Set<string>();
     for (const entry of packingAutocompleteCorpus) {
       expect(entry.name.trim()).not.toBe("");
       expect(ids.has(entry.id)).toBe(false);
+      expect(
+        normalisedNames.has(normaliseAutocompleteText(entry.name)),
+        `Duplicate normalised name: ${entry.name}`,
+      ).toBe(false);
       ids.add(entry.id);
+      normalisedNames.add(normaliseAutocompleteText(entry.name));
     }
   });
 
@@ -72,6 +85,10 @@ describe("packing autocomplete corpus", () => {
     expect(names()).toEqual(expect.arrayContaining([
       "Passports",
       "T-shirts",
+      "Midi dress",
+      "Wide-leg trousers",
+      "Vest top",
+      "One-piece swimsuit",
       "Toothbrush",
       "Phone charger",
       "Camera memory cards",
@@ -103,6 +120,29 @@ describe("packing autocomplete search", () => {
     expect(searchPackingAutocomplete("memory", { categories, travellers }).map((suggestion) => suggestion.entry.name)).toContain("Camera memory cards");
   });
 
+  it.each([
+    ["dress", "Midi dress"],
+    ["sand", "Sandals"],
+    ["gog", "Swim goggles"],
+    ["tonie", "Toniebox"],
+    ["usb", "USB-C cable"],
+    ["power", "Power bank"],
+    ["lanyard", "Cruise lanyards"],
+    ["magnet", "Magnetic hooks"],
+    ["plaster", "Plasters"],
+    ["poncho", "Disney/theme park ponchos"],
+    ["airtag", "AirTags"],
+    ["swim", "Swim goggles"],
+    ["tablet", "Tablet"],
+    ["camera", "Camera"],
+  ])("returns representative suggestion for %s", (query, expectedName) => {
+    expect(
+      searchPackingAutocomplete(query, { categories, travellers }).map(
+        (suggestion) => suggestion.entry.name,
+      ),
+    ).toContain(expectedName);
+  });
+
   it("ranks prefix matches above contains matches and caps results", () => {
     const results = searchPackingAutocomplete("car", { categories, travellers }, 3);
     expect(results).toHaveLength(3);
@@ -118,7 +158,7 @@ describe("packing autocomplete search", () => {
     ["drone", "Drone"],
     ["memory", "Camera memory cards"],
     ["pon", "Disney/theme park ponchos"],
-    ["dog", "Dog food"],
+    ["dog", "Dog beach bed"],
     ["pass", "Passports"],
     ["sun", "Sun cream"],
     ["charg", "Charging hub"],

@@ -1,4 +1,5 @@
 import type { PackingAutocompleteEntry } from "./packing-autocomplete-types";
+import { generatedPackingAutocompleteEntries } from "./packing-autocomplete-corpus.generated";
 
 function entry(
   id: string,
@@ -203,4 +204,5 @@ export const packingAutocompleteCorpus: PackingAutocompleteEntry[] = [
   entry("extras:anti-bac-wipes", "Anti-bac wipes", { aliases: ["antibacterial wipes"], categoryHint: "health", ownerHint: "shared", priorityHint: "important" }),
   entry("extras:tissues", "Tissues", { categoryHint: "health", ownerHint: "shared", priorityHint: "useful" }),
   entry("extras:spare-sunglasses", "Spare sunglasses", { categoryHint: "clothing", ownerHint: "shared", priorityHint: "useful" }),
+  ...generatedPackingAutocompleteEntries,
 ];

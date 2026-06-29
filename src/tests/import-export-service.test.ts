@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { ProperlyPackedDatabase } from "../db";
 import { applyStarterPack } from "../db/repositories/starter-pack-repository";
+import { createPackingItem, updatePackingItem } from "../db/repositories/packing-items-repository";
 import { applyInitialSeed } from "../db/seed";
 import type { Traveller, Trip } from "../db/types";
 import type { ProperlyPackedExport } from "../features/import-export";
+import { buildBulkCaptureRows } from "../features/packing-items/bulk-capture-enrichment";
+import { parseBulkCaptureText } from "../features/packing-items/bulk-capture-parser";
+import { searchPackingAutocomplete } from "../features/packing-items/autocomplete/packing-autocomplete-search";
 import { APP_VERSION } from "../lib/app-version";
 import {
   EXPORT_SCHEMA_VERSION,
@@ -405,6 +409,132 @@ describe("import and export service", () => {
     );
     expect(await targetDb.preTripTasks.count()).toBe(applied.tasksCreated);
     expect(exportData).not.toHaveProperty("starterPackPreview");
+  });
+
+  it("round-trips items created from autocomplete and bulk enrichment", async () => {
+    const sourceDb = createTestDatabase();
+    const targetDb = createTestDatabase();
+    const now = "2026-06-18T00:00:00.000Z";
+
+    const beck = traveller("traveller:beck", "Beck");
+    const seb = traveller("traveller:seb", "Seb");
+    await sourceDb.travellers.bulkAdd([beck, seb]);
+    await sourceDb.trips.add({
+      ...trip("trip:closure", "Closure trip"),
+      travellerIds: [beck.id, seb.id],
+    });
+    await sourceDb.bags.add({
+      id: "bag:main",
+      tripId: "trip:closure",
+      name: "Main suitcase",
+      bagType: "suitcase",
+      isHandLuggage: false,
+      isTravelDay: false,
+      isCruiseEmbarkation: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const sourceBag = await sourceDb.bags.get("bag:main");
+    if (!sourceBag) {
+      throw new Error("Expected source bag to exist.");
+    }
+
+    const autocompleteSuggestion = searchPackingAutocomplete("tonie", {
+      categories: ["entertainment", "electronics", "travel-day", "clothing"],
+      travellers: [beck, seb],
+    })[0];
+    expect(autocompleteSuggestion?.entry.name).toBe("Toniebox");
+
+    const quickAddItem = await createPackingItem(
+      {
+        tripId: "trip:closure",
+        name: autocompleteSuggestion?.entry.name ?? "Toniebox",
+        ownershipScope: autocompleteSuggestion?.resolvedOwnership?.ownershipScope ?? "unassigned",
+        ownerTravellerId: autocompleteSuggestion?.resolvedOwnership?.ownerTravellerId,
+        category: autocompleteSuggestion?.resolvedCategory ?? "entertainment",
+        quantity: 1,
+        priority: autocompleteSuggestion?.entry.priorityHint ?? "important",
+        status: autocompleteSuggestion?.entry.statusHint ?? "needed",
+        bagId: "bag:main",
+      },
+      sourceDb,
+    );
+
+    const bulkRows = buildBulkCaptureRows(
+      parseBulkCaptureText("USB-C cables\nSeb swim goggles"),
+      {
+        bags: [sourceBag],
+        categories: ["electronics", "swim", "clothing", "travel-day"],
+        existingItems: [quickAddItem],
+        travellers: [beck, seb],
+        tripId: "trip:closure",
+      },
+    );
+
+    const bulkItem = await createPackingItem(
+      {
+        tripId: "trip:closure",
+        name: bulkRows[0].name,
+        ownershipScope: bulkRows[0].ownershipScope,
+        ownerTravellerId: bulkRows[0].ownerTravellerId,
+        category: bulkRows[0].category,
+        quantity: bulkRows[0].quantity,
+        priority: bulkRows[0].priority,
+        status: bulkRows[0].status,
+        bagId: bulkRows[0].bagId,
+      },
+      sourceDb,
+    );
+
+    const secondBulkItem = await createPackingItem(
+      {
+        tripId: "trip:closure",
+        name: bulkRows[1].name,
+        ownershipScope: bulkRows[1].ownershipScope,
+        ownerTravellerId: bulkRows[1].ownerTravellerId,
+        category: bulkRows[1].category,
+        quantity: bulkRows[1].quantity,
+        priority: bulkRows[1].priority,
+        status: bulkRows[1].status,
+        bagId: bulkRows[1].bagId,
+      },
+      sourceDb,
+    );
+
+    await updatePackingItem(
+      bulkItem.id,
+      { bagId: "bag:main", status: "packed" },
+      sourceDb,
+    );
+    await updatePackingItem(
+      secondBulkItem.id,
+      { bagId: "bag:main", status: "packed" },
+      sourceDb,
+    );
+
+    const exportData = await generateExportData(sourceDb);
+    await replaceDataFromExport(exportData, targetDb);
+
+    expect(await targetDb.packingItems.count()).toBe(3);
+    expect(
+      (await targetDb.packingItems.toArray()).find((item) => item.name === "Toniebox"),
+    ).toMatchObject({
+      category: "entertainment",
+      ownerTravellerId: "traveller:seb",
+      bagId: "bag:main",
+    });
+    expect(
+      (await targetDb.packingItems.toArray()).find((item) => item.name === "USB-C cables"),
+    ).toMatchObject({
+      category: "electronics",
+      ownershipScope: "unassigned",
+    });
+    expect(
+      (await targetDb.packingItems.toArray()).find((item) => item.name === "Seb swim goggles"),
+    ).toMatchObject({
+      category: "misc",
+      ownerTravellerId: "traveller:seb",
+    });
   });
 
   it("resets local data and restores foundation seed data", async () => {

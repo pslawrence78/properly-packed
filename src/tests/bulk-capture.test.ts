@@ -22,11 +22,16 @@ const categories = [
   "documents",
   "electronics",
   "health",
+  "toiletries",
   "entertainment",
   "cruise-extras",
+  "swim",
   "misc",
   "pet",
   "weather",
+  "travel-day",
+  "comfort",
+  "laundry",
 ];
 
 describe("bulk capture parsing and enrichment", () => {
@@ -186,6 +191,37 @@ dog towel`);
       ownerTravellerId: "traveller:albert",
       category: "pet",
     });
+  });
+
+  it("handles the tranche 35A mixed bulk add examples", () => {
+    const rows = rowsFor(`Evening dresses
+USB-C cables
+Seb swim goggles
+Toniebox
+Favourite Tonies
+Power bank
+Magnetic cruise hooks
+Cruise lanyards
+Kids headphones
+Camera memory cards
+Plasters
+Ponchos
+Beach bag
+Travel adapter
+Albert lead
+Packing cubes`);
+
+    expect(rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "Evening dresses", category: "clothing" }),
+      expect.objectContaining({ name: "USB-C cables", category: "electronics" }),
+      expect.objectContaining({ name: "Seb swim goggles", ownerTravellerId: "traveller:seb" }),
+      expect.objectContaining({ name: "Favourite Tonies", ownerTravellerId: "traveller:seb" }),
+      expect.objectContaining({ name: "Power bank", category: "electronics" }),
+      expect.objectContaining({ name: "Magnetic cruise hooks", category: "cruise-extras" }),
+      expect.objectContaining({ name: "Kids headphones", category: "entertainment" }),
+      expect.objectContaining({ name: "Plasters", category: "health" }),
+      expect.objectContaining({ name: "Albert lead", ownerTravellerId: "traveller:albert" }),
+    ]));
   });
 
   it("keeps explicit owner and status syntax ahead of corpus hints", () => {

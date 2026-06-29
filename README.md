@@ -4,35 +4,17 @@ Family travel packing, without the forgotten bits.
 
 ## Current Release
 
-Version 0.29.0 expands the deterministic library intelligence available at first
-use. It now includes 11 richer trip templates, 140 curated Useful Extras and 19
-gadget bundles, with context rules for flight, cruise, beach, theme park,
-dog-friendly, cold-weather, multi-centre and special-occasion travel.
+Version 0.32.1 closes the packing autocomplete corpus tranche. The local,
+deterministic packing corpus now covers 500+ curated items for clothing,
+toiletries, gadgets, children's kit, travel extras, cruise, beach, theme park
+and dog-friendly packing, while Quick Add and Bulk Add continue to use the same
+local search/enrichment flow.
 
-Gadget bundles distinguish required and optional items and use the existing
-charge, download, check and pack task workflow. Historic family packing patterns
-informed the expansion, while sensitive details and age-stale toddler defaults
-remain deliberately excluded.
+The app remains local-first and testable. IndexedDB stays at v5, the export
+schema stays at v2 and the seed data stays at v0.12.0.
 
-Tranche 29 post-trip review and learning remains included.
-Completed trips can capture forgotten, unused, invaluable, wrong-bag,
-buy-next-time, always-suggest and do-not-suggest learnings. Reviews remain
-editable, preserve item and bag snapshots, and can explicitly promote learning
-to Useful Extras or a selected template.
-
-Matching positive learning appears as a separate, opt-in Starter Pack source.
-Buy-next-time items are added with `to-buy` status, forgotten items retain their
-risk flag, duplicate suggestions are skipped, and trip-type suppressions prevent
-matching template suggestions from being blindly applied. No template, library,
-or future trip is silently rewritten.
-
-IndexedDB is v5 (review query indexes and a non-destructive review migration).
-Export schema remains v2 because review tables were already part of that contract;
-review rows retain their stricter import validation.
-
-IndexedDB remains v5, export schema remains v2 and seed data is v0.12.0.
-See `docs/31-library-intelligence-expansion-v0.1.md` for the expanded seed
-strategy, source assumptions, deliberate exclusions and validation scope.
+See `docs/35A-device-soak-and-corpus-closure-v0.1.md` for the validation
+checklists, limitations and tranche closure notes.
 
 ## GitHub Pages Deployment
 
