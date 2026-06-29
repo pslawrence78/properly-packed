@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -55,6 +55,8 @@ vi.mock("../db/repositories/packing-items-repository", () => ({
 import { PackingListScreen } from "../features/packing-items/PackingListScreen";
 
 describe("PackingListScreen", () => {
+  const scrollIntoViewMock = vi.fn();
+
   beforeEach(() => {
     mocks.items = [];
     mocks.bags = [];
@@ -73,6 +75,11 @@ describe("PackingListScreen", () => {
     mocks.createPackingItem.mockClear();
     mocks.listPackingItemsForTrip.mockClear();
     mocks.updatePackingItemStatus.mockClear();
+    scrollIntoViewMock.mockClear();
+    Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoViewMock,
+    });
   });
 
   it("renders the helpful empty state and creates an unassigned quick-add item", async () => {
@@ -335,8 +342,15 @@ describe("PackingListScreen", () => {
     expect(screen.getByRole("button", { name: "Add 2 items" })).toBeInTheDocument();
 
     await user.click(screen.getAllByRole("button", { name: "Included" })[0]);
-    await user.clear(screen.getAllByLabelText("Item name")[2]);
-    await user.type(screen.getAllByLabelText("Item name")[2], "large power bank");
+    const powerBankRow = screen
+      .getByText("Phil: power bank / to charge / gadget bag")
+      .closest("article");
+    expect(powerBankRow).not.toBeNull();
+    const powerBankNameInput = within(powerBankRow as HTMLElement).getByLabelText(
+      "Item name",
+    );
+    await user.clear(powerBankNameInput);
+    await user.type(powerBankNameInput, "large power bank");
     await user.click(screen.getByRole("button", { name: "Add 1 items" }));
 
     expect(mocks.createPackingItem).toHaveBeenCalledTimes(1);
@@ -348,6 +362,31 @@ describe("PackingListScreen", () => {
         bagId: "bag:gadget",
       }),
     );
+  });
+
+  it("opens bulk add with a specific close label and brings the panel into view", async () => {
+    const user = userEvent.setup();
+    renderScreen();
+
+    await user.click(await screen.findByRole("button", { name: "Bulk add" }));
+
+    const bulkInput = screen.getByLabelText("Packing list");
+    expect(screen.getByRole("button", { name: "Close bulk add" })).toBeInTheDocument();
+    expect(bulkInput).toHaveFocus();
+    expect(scrollIntoViewMock).toHaveBeenCalled();
+  });
+
+  it("opens detailed add with a specific close label and focuses the form", async () => {
+    const user = userEvent.setup();
+    renderScreen();
+
+    await user.click(await screen.findByRole("button", { name: "Detailed add" }));
+
+    const addForm = screen.getByRole("form", { name: "Add packing item" });
+    const itemNameInput = within(addForm).getByLabelText("Item name");
+    expect(screen.getByRole("button", { name: "Close detailed add" })).toBeInTheDocument();
+    expect(itemNameInput).toHaveFocus();
+    expect(scrollIntoViewMock).toHaveBeenCalled();
   });
 
   it("does not create items when bulk add is cancelled", async () => {

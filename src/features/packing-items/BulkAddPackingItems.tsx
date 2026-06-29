@@ -1,5 +1,5 @@
 import { Check, ClipboardList, X } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { PackingItemInput } from "../../db/repositories/packing-items-repository";
 import type {
   Bag,
@@ -47,7 +47,12 @@ export function BulkAddPackingItems({
   const [error, setError] = useState<string>();
   const [committing, setCommitting] = useState(false);
   const [committedCount, setCommittedCount] = useState<number>();
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const summary = useMemo(() => summariseBulkRows(rows ?? []), [rows]);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   function preview() {
     const parsed = parseBulkCaptureText(input);
@@ -135,6 +140,7 @@ export function BulkAddPackingItems({
               className="min-h-48 w-full rounded-lg border border-charcoal/15 bg-cream px-3 py-3 text-base outline-none focus:border-teal focus:ring-2 focus:ring-teal/20"
               onChange={(event) => setInput(event.target.value)}
               placeholder={"swim goggles\nSeb: Toniebox / hand luggage / to charge\nShared: passports / essential"}
+              ref={inputRef}
               value={input}
             />
           </label>

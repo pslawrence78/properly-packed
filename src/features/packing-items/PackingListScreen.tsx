@@ -1,5 +1,5 @@
 import { Check, ChevronDown, Pencil, PackagePlus, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { TripNotFoundState } from "../../components/empty-states/TripNotFoundState";
 import { ensureDatabaseReady } from "../../db";
@@ -51,6 +51,8 @@ export function PackingListScreen() {
   const [filters, setFilters] = useState<PackingFilters>(emptyPackingFilters);
   const [viewMode, setViewMode] = useState<PackViewMode>("person");
   const [packingItems, setPackingItems] = useState<PackingItem[]>([]);
+  const bulkAddPanelRef = useRef<HTMLDivElement>(null);
+  const detailedAddPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setFilters(packingFiltersFromSearchParams(searchParams));
@@ -95,6 +97,24 @@ export function PackingListScreen() {
       setPackingItems(packingData.data.items);
     }
   }, [packingData]);
+
+  useEffect(() => {
+    if (showBulkAdd) {
+      bulkAddPanelRef.current?.scrollIntoView({
+        block: "nearest",
+        inline: "nearest",
+      });
+    }
+  }, [showBulkAdd]);
+
+  useEffect(() => {
+    if (showAddForm) {
+      detailedAddPanelRef.current?.scrollIntoView({
+        block: "nearest",
+        inline: "nearest",
+      });
+    }
+  }, [showAddForm]);
 
   useEffect(() => {
     if (packingData.state !== "ready") return;
@@ -262,6 +282,22 @@ export function PackingListScreen() {
     setQuickAddFocusRequest((request) => request + 1);
   }
 
+  function toggleBulkAdd() {
+    const nextVisible = !showBulkAdd;
+    setShowBulkAdd(nextVisible);
+    if (nextVisible) {
+      setShowAddForm(false);
+    }
+  }
+
+  function toggleDetailedAdd() {
+    const nextVisible = !showAddForm;
+    setShowAddForm(nextVisible);
+    if (nextVisible) {
+      setShowBulkAdd(false);
+    }
+  }
+
   return (
     <section className="space-y-5">
       {packingData.state === "loading" ? (
@@ -304,18 +340,22 @@ export function PackingListScreen() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
+                  aria-controls="packing-bulk-add-panel"
+                  aria-expanded={showBulkAdd}
                   className="min-h-11 rounded-lg bg-teal px-4 py-3 text-sm font-semibold text-cream shadow-soft"
-                  onClick={() => setShowBulkAdd((visible) => !visible)}
+                  onClick={toggleBulkAdd}
                   type="button"
                 >
                   {showBulkAdd ? "Close bulk add" : "Bulk add"}
                 </button>
                 <button
+                  aria-controls="packing-detailed-add-panel"
+                  aria-expanded={showAddForm}
                   className="min-h-11 rounded-lg bg-slateAccent px-4 py-3 text-sm font-semibold text-cream shadow-soft"
-                  onClick={() => setShowAddForm((visible) => !visible)}
+                  onClick={toggleDetailedAdd}
                   type="button"
                 >
-                  {showAddForm ? "Close form" : "Detailed add"}
+                  {showAddForm ? "Close detailed add" : "Detailed add"}
                 </button>
                 <Link className="trip-action" to={`/trips/${packingData.data.trip.id}`}>
                   Trip overview
@@ -329,6 +369,56 @@ export function PackingListScreen() {
               </div>
             </div>
           </div>
+
+          {showBulkAdd || showAddForm ? (
+            <div className="space-y-4">
+              {showBulkAdd ? (
+                <div
+                  className="scroll-mt-24"
+                  id="packing-bulk-add-panel"
+                  ref={bulkAddPanelRef}
+                >
+                  <BulkAddPackingItems
+                    bags={packingData.data.bags}
+                    categories={packingData.data.categories}
+                    existingItems={packingItems}
+                    quickAddContext={quickAddContext}
+                    travellers={packingData.data.travellers}
+                    tripId={packingData.data.trip.id}
+                    onCancel={() => setShowBulkAdd(false)}
+                    onCommit={submitBulkPackingItems}
+                  />
+                </div>
+              ) : null}
+
+              {showAddForm ? (
+                <div
+                  className="scroll-mt-24"
+                  id="packing-detailed-add-panel"
+                  ref={detailedAddPanelRef}
+                >
+                  <PackingItemForm
+                    bags={packingData.data.bags}
+                    categories={packingData.data.categories}
+                    focusOnMount
+                    initialDefaults={{
+                      ownershipScope: quickAddContext.ownershipScope,
+                      ownerTravellerId: quickAddContext.ownerTravellerId,
+                      category: quickAddContext.category ?? "misc",
+                      priority: "important",
+                      status: quickAddContext.status ?? "needed",
+                      bagId: quickAddContext.bagId,
+                    }}
+                    travellers={packingData.data.travellers}
+                    tripId={packingData.data.trip.id}
+                    submitLabel="Add item"
+                    onCancel={() => setShowAddForm(false)}
+                    onSubmit={submitDetailedAdd}
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           <section className="rounded-lg border border-charcoal/10 bg-paper p-5 shadow-soft sm:p-6">
             <div className="grid gap-4 sm:grid-cols-4">
@@ -364,39 +454,6 @@ export function PackingListScreen() {
             travellers={packingData.data.travellers}
             tripId={packingData.data.trip.id}
           />
-
-          {showBulkAdd ? (
-            <BulkAddPackingItems
-              bags={packingData.data.bags}
-              categories={packingData.data.categories}
-              existingItems={packingItems}
-              quickAddContext={quickAddContext}
-              travellers={packingData.data.travellers}
-              tripId={packingData.data.trip.id}
-              onCancel={() => setShowBulkAdd(false)}
-              onCommit={submitBulkPackingItems}
-            />
-          ) : null}
-
-          {showAddForm ? (
-            <PackingItemForm
-              bags={packingData.data.bags}
-              categories={packingData.data.categories}
-              initialDefaults={{
-                ownershipScope: quickAddContext.ownershipScope,
-                ownerTravellerId: quickAddContext.ownerTravellerId,
-                category: quickAddContext.category ?? "misc",
-                priority: "important",
-                status: quickAddContext.status ?? "needed",
-                bagId: quickAddContext.bagId,
-              }}
-              travellers={packingData.data.travellers}
-              tripId={packingData.data.trip.id}
-              submitLabel="Add item"
-              onCancel={() => setShowAddForm(false)}
-              onSubmit={submitDetailedAdd}
-            />
-          ) : null}
 
           <PackingFiltersPanel
             categories={packingData.data.categories}

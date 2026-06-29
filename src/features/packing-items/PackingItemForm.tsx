@@ -1,4 +1,10 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import type { PackingItemInput } from "../../db/repositories/packing-items-repository";
 import type {
   Bag,
@@ -17,6 +23,7 @@ import {
 type PackingItemFormProps = {
   bags: Bag[];
   categories: string[];
+  focusOnMount?: boolean;
   initialDefaults?: Partial<PackingItem>;
   initialItem?: PackingItem;
   submitLabel: string;
@@ -29,6 +36,7 @@ type PackingItemFormProps = {
 export function PackingItemForm({
   bags,
   categories,
+  focusOnMount = false,
   initialDefaults,
   initialItem,
   onCancel,
@@ -66,6 +74,13 @@ export function PackingItemForm({
   const [notes, setNotes] = useState(initialItem?.notes ?? "");
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (focusOnMount) {
+      nameInputRef.current?.focus();
+    }
+  }, [focusOnMount]);
 
   function changeOwnership(nextScope: ItemOwnershipScope) {
     setOwnershipScope(nextScope);
@@ -138,6 +153,7 @@ export function PackingItemForm({
             <input
               className={controlClass}
               onChange={(event) => setName(event.target.value)}
+              ref={nameInputRef}
               value={name}
             />
           </Field>
